@@ -11,6 +11,7 @@ import {
   Clock3,
   FilePenLine,
   FileText,
+  Info,
   LoaderCircle,
   Plus,
   Save,
@@ -106,18 +107,8 @@ function Conversation({ module, snapshot, onPrompt }: ModuleContentProps) {
       <div className="mc-welcome">
         <div className="mc-welcome-top">
           <PixelMark />
-          <span className="mc-eyebrow">YOUR SPACE TO MAKE THINGS</span>
         </div>
-        <h2>
-          把想法，
-          <br />
-          变成正在发生的事<span className="mc-violet">。</span>
-        </h2>
-        <p>
-          聊一聊目标，让 Agent 帮你整理计划、
-          <br className="mc-welcome-break" />
-          构建模块，推进手头的工作。
-        </p>
+        <h2>说出目标，Agent 会帮你整理。</h2>
         {snapshot.messages.length === 0 && (
           <div className="mc-quick-actions">
             {quickActions.map(({ icon: Icon, label, sub, prompt }) => (
@@ -303,8 +294,8 @@ function Planner({ module, dispatch, onPrompt }: ModuleContentProps) {
         {module.tasks.length === 0 && (
           <div className="mc-empty-plan">
             <CheckCheck size={26} />
-            <p>留点空间给接下来的好想法。</p>
-            <span>添加一项任务，或者让 Agent 帮你规划。</span>
+            <p>暂无任务</p>
+            <span>添加任务，或让 Agent 帮你规划。</span>
           </div>
         )}
       </div>
@@ -572,8 +563,7 @@ function Document({
               ),
             }}
           >
-            {module.content ||
-              "# 从一页空白开始\n\n记录一个想法，或者让 Agent 为你起草。"}
+            {module.content || "# 空白文档"}
           </ReactMarkdown>
         </div>
       )}
@@ -639,12 +629,14 @@ function Dashboard({ module, snapshot }: ModuleContentProps) {
         </span>
       </div>
       {config?.title && <h3>{config.title}</h3>}
-      <p className="mc-dashboard-filter">
-        数据来源：当前工作区 ·{" "}
-        {config?.plannerIds.length
-          ? `已选 ${planners.length} 个计划`
-          : "全部计划"}
-      </p>
+      <span
+        className="mc-dashboard-filter"
+        role="img"
+        aria-label={`数据来源：当前工作区，${config?.plannerIds.length ? `已选 ${planners.length} 个计划` : "全部计划"}`}
+      >
+        <Info size={12} aria-hidden="true" />
+        数据来源
+      </span>
       <div className="mc-metrics">
         {metrics.map((metric) => {
           const item = metricValues[metric];

@@ -1,4 +1,4 @@
-# Atrio WorkSpace · 0.0.5 体验版本
+# Atrio WorkSpace · 0.0.6 体验版本
 
 > 接手与继续开发请先读 [持续更新 Handoff 主手册](/Users/user/Documents/Codex/2026-09-27/users-user-documents-codex-2026-09-2/outputs/pixel-workspace-handoff.md)。所有版本都是体验版本，按 `web → dev → beta` 验收与命名；每次落实迭代及时更新同一路径。
 
@@ -6,7 +6,7 @@
 
 可选择本地 Mock、Hermes、Claude Code 或 Codex ACP 入口。Hermes 与 Claude Code 已完成真实模块工具预验收；Codex 的ACP实现和已知路径保留，真机验证按用户决定后置。连接失败不会静默回退Mock。
 
-本轮统一版本0.0.5，左上品牌Atrio；这是有意重设软件版本，不降低数据库schema。现有Bundle ID和数据目录保持兼容。当前能力、固定依赖和Workspace MCP说明见 [0.0.5说明](docs/ATRIO_005.md)，最终渠道验收见固定Handoff。
+当前源码版本为 0.0.6，左上品牌 Atrio；现有 Bundle ID 和数据目录保持兼容。本轮页面信息简介化候选为 `0.0.6-information-03`，按 Dev → Beta 验收，未生成 0.0.6 Web 候选。当前能力、固定依赖和 Workspace MCP 说明见 [0.0.5说明](docs/ATRIO_005.md)，历史 0.0.5 候选记录与最新渠道验收见固定 Handoff。
 
 ## 连接 Hermes
 

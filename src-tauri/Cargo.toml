@@ -1,6 +1,6 @@
 [package]
 name = "pixel-workspace"
-version = "0.0.5"
+version = "0.0.6"
 description = "A local-first modular agent workspace prototype"
 authors = ["Pixel Workspace"]
 edition = "2021"

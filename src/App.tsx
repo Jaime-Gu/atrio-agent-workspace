@@ -36,6 +36,7 @@ import {
   loadAppInfo,
 } from "./lib/app-info";
 import { providerName } from "./lib/providers";
+import { runStatusLabels, userFacingError } from "./lib/ui-copy";
 import type { AppInfoState } from "./lib/app-info";
 import { Canvas } from "./components/Canvas";
 import { Dialog } from "./components/Dialog";
@@ -54,14 +55,41 @@ import {
   SettingsPanel,
   moduleTypes,
 } from "./components/Panels";
-const runLabels = {
-  idle: "等待新想法",
-  running: "Agent 正在工作",
-  waiting_approval: "等待你的审批",
-  completed: "任务已完成",
-  failed: "任务未完成",
-  cancelled: "任务已取消",
-};
+function agentActionHint(snapshot: WorkspaceSnapshot): string | null {
+  const blocked = policyBlockReason(snapshot);
+  if (blocked) return blocked;
+  if (snapshot.agent.transport !== "stdio") return null;
+  const name = providerName(snapshot.agent);
+  if (!isDesktop) return `Web 预览不支持真实 ${name} · 请打开 Dev 或 Beta`;
+  switch (snapshot.connection?.status) {
+    case "not_installed":
+      if (
+        snapshot.connection?.probe?.hostAvailable &&
+        snapshot.connection.probe.adapterAvailable &&
+        !snapshot.connection.probe.acpAvailable
+      )
+        return "ACP 检查失败 · 查看诊断";
+      if (
+        snapshot.connection?.probe?.hostAvailable &&
+        !snapshot.connection.probe.adapterAvailable
+      )
+        return "未找到 ACP 适配器 · 查看诊断";
+      return `未找到 ${name} · 查看诊断`;
+    case "not_authenticated":
+      return `请先在 ${name} 完成登录`;
+    case "error":
+      return "连接失败 · 查看诊断";
+    case "connecting":
+      return "正在连接";
+    case "stopping":
+      return "正在停止";
+    case "connected":
+      return null;
+    case "disconnected":
+    default:
+      return `Agent 未连接 · 连接`;
+  }
+}
 export default function App() {
   const [appInfo, setAppInfo] = useState<AppInfoState>(initialAppInfo);
   const versionLabel = appVersionLabel(appInfo);
@@ -232,7 +260,8 @@ export default function App() {
         clearTimeout(saveTimer.current);
         saveTimer.current = setTimeout(() => setSaved(false), 1800);
       } catch (e) {
-        if (generation === workspaceGeneration.current) setError(String(e));
+        if (generation === workspaceGeneration.current)
+          setError(userFacingError(e));
         throw e;
       }
     },
@@ -374,20 +403,7 @@ export default function App() {
       snapshot.approvals.some((approval) => approval.origin !== "user"),
     pending = snapshot.approvals.length;
   const policy = workspacePolicy(snapshot);
-  const agentBlock =
-    policyBlockReason(snapshot) ||
-    (snapshot.agent.transport === "stdio" &&
-      (!isDesktop
-        ? `真实 ${providerName(snapshot.agent)} 需要在原生应用中连接。`
-        : snapshot.connection?.status !== "connected"
-          ? snapshot.connection?.message ||
-            `请先在设置中连接 ${providerName(snapshot.agent)}。`
-          : null));
-  const today = new Intl.DateTimeFormat("zh-CN", {
-    month: "long",
-    day: "numeric",
-    weekday: "long",
-  }).format(new Date());
+  const agentBlock = agentActionHint(snapshot);
   return (
     <>
       <div className="app-shell" inert={switching} aria-busy={switching}>
@@ -542,12 +558,7 @@ export default function App() {
           <div className="sidebar-bottom">
             <div className="local-info">
               <span className="status-square idle" />
-              <span>
-                你的工作，保存在本地
-                <small>
-                  {isDesktop ? "SQLite · 文件工作区" : "浏览器交互预览"}
-                </small>
-              </span>
+              <span>{isDesktop ? "本地" : "预览"}</span>
             </div>
             <button
               className="command-shortcut"
@@ -571,15 +582,14 @@ export default function App() {
         </aside>
         <button
           className="workspace-policy-button"
-          aria-label={`工作区权限：${policyLabels[policy.effective]} · ${policy.source === "system" ? "系统" : "工作区"}`}
+          aria-label={`权限与安全：${policyLabels[policy.effective]} · ${policy.source === "system" ? "系统" : "工作区"}`}
+          title="打开权限与安全"
           onClick={() => setPanel("policy")}
         >
           <ShieldCheck size={18} />
           <span>
-            {policyLabels[policy.effective]}
-            <small>
-              来源：{policy.source === "system" ? "系统" : "工作区"}
-            </small>
+            权限：{policyLabels[policy.effective]} ·{" "}
+            {policy.source === "system" ? "系统" : "工作区"}
           </span>
           <ChevronDown size={13} />
         </button>
@@ -589,13 +599,13 @@ export default function App() {
               <div className="board-heading">
                 <div>
                   <span className="eyebrow">
-                    {focused ? "FOCUS MODE" : "YOUR PERSONAL CANVAS"}
+                    {focused ? "FOCUS" : "WORKSPACE"}
                   </span>
-                  <h1>{focused ? active?.title : "让想法，各就其位。"}</h1>
+                  <h1>{focused ? active?.title : "工作台"}</h1>
                   <p>
                     {focused
-                      ? "专注于当前模块，按 Esc 返回原来的工作台。"
-                      : `${today} · 从一个目标开始，让工作在这里展开。`}
+                      ? "当前模块 · Esc 返回画布"
+                      : `${snapshot.modules.length} 个模块${saved ? " · 已保存" : ""}`}
                   </p>
                 </div>
                 <div className="board-actions">
@@ -641,20 +651,14 @@ export default function App() {
               <div className="board-meta">
                 <span>
                   <span className="violet-square" />
-                  {focused ? "专注视图" : "默认画布"}
-                  <i /> {snapshot.modules.length} 个模块
+                  {focused ? "专注视图" : `${snapshot.modules.length} 个模块`}
                 </span>
                 <span className="board-hint">
-                  {saved ? (
+                  {saved && (
                     <>
                       <Check size={12} /> 已保存
                     </>
-                  ) : (
-                    <>拖动标题移动 · 右下角缩放 · 双击聚焦</>
                   )}
-                </span>
-                <span className="grid-label">
-                  24 COL <Grid2X2 size={12} />
                 </span>
               </div>
               <Canvas
@@ -677,8 +681,8 @@ export default function App() {
               <div className="page-heading">
                 <div>
                   <span className="eyebrow">WORKSPACE FILES</span>
-                  <h1>成果，留在你的手里。</h1>
-                  <p>文档以 Markdown 文件保存在工作区，可直接打开和备份。</p>
+                  <h1>工作区文件</h1>
+                  <p>仅显示模块文档。</p>
                 </div>
                 <button
                   className="button"
@@ -709,14 +713,9 @@ export default function App() {
                     </button>
                   ))}
                 {!snapshot.modules.some((m) => m.filePath) && (
-                  <p className="empty-state">
-                    还没有文档。添加一个文档模块即可开始。
-                  </p>
+                  <p className="empty-state">暂无文档</p>
                 )}
               </div>
-              <p className="help-text">
-                当前显示已关联模块的文件。完整文件索引与搜索将在后续版本加入。
-              </p>
             </div>
           )}
         </main>
@@ -726,9 +725,9 @@ export default function App() {
               <Command size={20} />
             </span>
             <div>
-              <span className="eyebrow">与 AGENT 协作</span>
+              <span className="eyebrow">上下文</span>
               <button
-                title="本轮引用所选模块的已保存版本。Agent 可按权限调用工具读取当前工作区模块；未保存草稿不会发送。"
+                aria-label="查看当前上下文模块"
                 onClick={() => {
                   if (active) focusModule(active.id);
                 }}
@@ -749,15 +748,22 @@ export default function App() {
                 {agentBlock}
               </button>
             )}
-            <p
+            <details
               className="composer-context-note"
               data-testid="context-scope"
-              title={`本轮上下文：${active ? `「${active.title}」已保存版本` : "未选择模块"}；Agent 可以按权限使用当前工作区模块工具，不发送未保存草稿。`}
             >
-              本轮上下文：
-              {active ? `「${active.title}」已保存版本` : "未选择模块"} ·
-              工具范围：当前工作区 · 不发送未保存草稿
-            </p>
+              <summary>
+                上下文：{active ? `${active.title}（已保存）` : "未选择模块"} ·
+                工具：当前工作区
+              </summary>
+              <div className="composer-context-detail">
+                <span>
+                  版本：{active?.revision || (active ? "当前保存版本" : "无")}
+                </span>
+                <span>未保存草稿不进入本轮。</span>
+                <span>可用工具：当前工作区模块读取与提案。</span>
+              </div>
+            </details>
             <textarea
               ref={inputRef}
               aria-label="发送给 Agent 的消息"
@@ -830,11 +836,8 @@ export default function App() {
               }
             />
             <span>
-              {runLabels[snapshot.runStatus]}
-              <small>
-                {policyLabels[policy.effective]} ·{" "}
-                {isDesktop ? "已连接本地 Host" : "交互预览"}
-              </small>
+              {runStatusLabels[snapshot.runStatus]}
+              <small>{isDesktop ? "本地" : "预览"}</small>
             </span>
           </div>
         </footer>
@@ -870,6 +873,7 @@ export default function App() {
             dispatch={dispatch}
             onClose={() => setPanel(null)}
             onChoose={() => void chooseWorkspace()}
+            onPolicy={() => setPanel("policy")}
           />
         )}
         {panel === "policy" && (

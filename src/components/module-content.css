@@ -1156,4 +1156,7 @@
   font-size: 10px;
   margin: 0 0 14px;
   line-height: 1.5;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }

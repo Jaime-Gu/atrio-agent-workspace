@@ -380,6 +380,41 @@ describe("planner task title", () => {
   });
 });
 
+describe("compact module copy", () => {
+  it("keeps the conversation welcome focused on one next action", async () => {
+    snapshot.modules = [{ ...documentModule(), type: "conversation" }];
+    await render();
+    expect(container.textContent).toContain("说出目标，Agent 会帮你整理。");
+    expect(container.textContent).not.toContain("YOUR SPACE TO MAKE THINGS");
+  });
+
+  it("uses a short planner empty state", async () => {
+    snapshot.modules = [{ ...documentModule(), type: "planner", tasks: [] }];
+    await render();
+    expect(container.textContent).toContain("暂无任务");
+    expect(container.textContent).toContain("添加任务");
+  });
+
+  it("exposes dashboard source details through an accessible label", async () => {
+    snapshot.modules = [
+      {
+        ...documentModule(),
+        type: "dashboard",
+        dashboardConfig: {
+          metrics: ["module_count"],
+          plannerIds: [],
+        },
+      },
+    ];
+    await render();
+    const source = container.querySelector<HTMLElement>(
+      ".mc-dashboard-filter[role='img']",
+    );
+    expect(source?.textContent).toContain("数据来源");
+    expect(source?.getAttribute("aria-label")).toContain("当前工作区");
+  });
+});
+
 describe("Dashboard local metrics", () => {
   it("renders the selected planners' actual data and reacts to saved task changes", async () => {
     const dashboard: WorkspaceModule = {

@@ -14,8 +14,7 @@ import { agentProvider, providerName } from "./providers";
 const key = "pixel-workspace-preview-v1";
 const uid = () => crypto.randomUUID();
 const now = () => new Date().toISOString();
-const doc =
-  "# 把想法，放上工作台\n\n这里是你的个人工作区。对话只是起点，计划、文档和数据都可以成为独立的模块。\n\n## 今天，从一件事开始\n\n- 描述一个想要完成的目标\n- 让 Agent 创建本周计划\n- 拖动模块，安排自己的工作节奏\n\n> 双击标题栏，进入专注模式。按 Esc 回到画布。";
+const doc = "# 工作区笔记";
 function moduleOf(type: ModuleType, title: string): WorkspaceModule {
   return {
     id: uid(),
@@ -61,7 +60,7 @@ function moduleOf(type: ModuleType, title: string): WorkspaceModule {
 }
 function seed(): WorkspaceSnapshot {
   const a = moduleOf("conversation", "与 Agent 一起工作"),
-    b = moduleOf("document", "工作区使用笔记"),
+    b = moduleOf("document", "工作区笔记"),
     c = moduleOf("dashboard", "工作区概览");
   a.layout = { x: 0, y: 0, w: 12, h: 47 };
   b.layout = { x: 12, y: 0, w: 12, h: 47 };
@@ -77,7 +76,7 @@ function seed(): WorkspaceSnapshot {
       {
         id: uid(),
         role: "assistant",
-        text: "你好，欢迎来到你的工作台。\n告诉我你的目标，我会把想法整理成可以继续工作的模块。\n\n试试「创建一个本周计划」。",
+        text: "告诉我目标，我来整理成模块。",
         timestamp: now(),
       },
     ],
@@ -85,7 +84,7 @@ function seed(): WorkspaceSnapshot {
       {
         seq: 1,
         kind: "initialized",
-        message: "Mock Agent 已就绪 · 预览模式",
+        message: "Web 预览已就绪",
         timestamp: now(),
         sessionId: null,
       },
@@ -145,7 +144,7 @@ for (const module of state.modules) module.moduleRevision ??= uid();
 if (state.agent.transport === "stdio")
   state.connection = {
     status: "disconnected",
-    message: `真实 ${providerName(state.agent)} 仅可在原生应用中连接。`,
+    message: `Web 预览不支持真实 ${providerName(state.agent)}；请打开 Dev 或 Beta 原生应用。`,
     providerSessionId: null,
     capabilities: null,
     hermesVersion: null,
@@ -345,8 +344,7 @@ function mockModuleProposal(
     kind: "module_changes",
     proposalId: uid(),
     title: `${before ? "更新" : "创建"}：${next.title}`,
-    description:
-      "Mock 界面演示提案；检查完整差异后再批准。真实 Provider 的模块操作在原生应用验收。",
+    description: "预览提案 · 检查差异后批准",
     moduleId: before?.id ?? null,
     moduleType: next.type,
     filePath: next.filePath,
@@ -379,13 +377,7 @@ function start(text: string, moduleId: string | null) {
         text,
       );
   const create = /创建|计划|看板|create|plan/i.test(text);
-  const output = fail
-    ? "正在验证错误恢复流程。此任务将产生一次可恢复的模拟错误。"
-    : edit
-      ? "我会先读取文档并生成修改建议。你可以检查差异，批准后才会写入工作区。"
-      : create
-        ? "我会把目标整理为一个可持续使用的模块。下面是模块提议，确认后即可放到画布上。"
-        : "收到。在当前原型中，你可以让我创建计划、修改文档或演示失败与取消。所有文件修改都会先生成审批。";
+  const output = fail || edit || create ? "正在生成提案" : "正在处理…";
   let pos = 0;
   const step = () => {
     pos += /长任务|long/i.test(text) ? 1 : 5;
@@ -445,7 +437,7 @@ function propose(a: Approval) {
       status: "pending",
       title: a.title,
       moduleId: a.moduleId,
-      summary: "等待审阅，尚未写入",
+      summary: "等待审批：尚未写入",
       createdAt: now(),
       updatedAt: now(),
     });
@@ -654,34 +646,34 @@ export const preview = {
       case "probe_agent":
         if (state.agent.transport === "stdio")
           throw new Error(
-            `真实 ${providerName(state.agent)} 探测仅支持原生应用，Web 预览不会启动或模拟该 Provider。`,
+            `Web 预览不支持真实 ${providerName(state.agent)}；请打开 Dev 或 Beta 原生应用。`,
           );
         event(
           "probe",
           state.agent.transport === "mock"
             ? "Mock Agent 能力协商成功"
-            : "真实 Agent 需要原生应用",
+            : "Web 预览不支持真实 Agent；请打开 Dev 或 Beta 原生应用。",
         );
         break;
       case "connect_agent":
         throw new Error(
-          `真实 ${providerName(state.agent)} 连接仅支持原生应用，Web 预览不会回退到 Mock。`,
+          `Web 预览不支持真实 ${providerName(state.agent)}；请打开 Dev 或 Beta 原生应用。`,
         );
       case "disconnect_agent":
         state.connection = {
           status: "disconnected",
-          message: `Web 预览未启动真实 ${providerName(state.agent)}。`,
+          message: `Web 预览不支持真实 ${providerName(state.agent)}；请打开 Dev 或 Beta 原生应用。`,
           providerSessionId: null,
           capabilities: null,
           hermesVersion: null,
         };
         break;
       case "permission_reply":
-        throw new Error("Web 预览中没有真实 Agent 权限请求。");
+        throw new Error("Web 预览没有真实 Agent 权限请求。");
       case "prompt":
         if (state.agent.transport !== "mock")
           throw new Error(
-            `真实 ${providerName(state.agent)} 任务仅支持原生应用，Web 预览不会回退到 Mock。`,
+            `Web 预览不支持真实 ${providerName(state.agent)}；请打开 Dev 或 Beta 原生应用。`,
           );
         start(a.text, a.moduleId);
         break;

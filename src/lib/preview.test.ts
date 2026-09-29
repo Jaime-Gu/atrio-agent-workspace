@@ -37,6 +37,14 @@ afterEach(() => {
 describe("Web policy simulation", () => {
   const systems: SystemPolicy[] = ["workspace", "allow_all", "deny_all"];
   const locals: PolicyMode[] = ["disabled", "restricted", "ask", "full"];
+  it("starts with concise workspace copy and a short document", () => {
+    const document = snapshot.modules.find(
+      (module) => module.type === "document",
+    );
+    expect(document?.content).toBe("# 工作区笔记");
+    expect(snapshot.messages[0]?.text).toBe("告诉我目标，我来整理成模块。");
+    expect(snapshot.events[0]?.message).toBe("Web 预览已就绪");
+  });
   it.each(
     systems.flatMap((system) => locals.map((local) => ({ system, local }))),
   )(
@@ -157,7 +165,9 @@ describe("Web policy simulation", () => {
       { type: "connect_agent" },
       { type: "prompt", text: "hello", moduleId: null },
     ] as WorkspaceAction[]) {
-      await expect(dispatch(action)).rejects.toThrow("原生应用");
+      await expect(dispatch(action)).rejects.toThrow(
+        "Web 预览不支持真实 Hermes",
+      );
     }
     expect((await preview.get()).agent.transport).toBe("stdio");
     expect((await preview.get()).connection?.status).not.toBe("connected");
@@ -266,11 +276,11 @@ describe("Web module proposal lifecycle", () => {
       await dispatch({ type: "confirm_agent_scope", accepted: true });
       expect(snapshot.policy?.scopeProvider).toBe(provider);
       await expect(dispatch({ type: "connect_agent" })).rejects.toThrow(
-        "原生应用",
+        "Web 预览不支持真实",
       );
       await expect(
         dispatch({ type: "prompt", text: "修改真实模块", moduleId: null }),
-      ).rejects.toThrow("不会回退到 Mock");
+      ).rejects.toThrow("Web 预览不支持真实");
       await dispatch({
         type: "save_agent",
         agent: providerDescriptor(

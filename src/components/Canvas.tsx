@@ -327,7 +327,7 @@ export function Canvas({
                     ? "ESC 返回画布"
                     : draft?.id === m.id
                       ? `X ${l.x} · Y ${l.y} · ${l.w} × ${l.h}`
-                      : "双击标题聚焦"}
+                      : "双击聚焦"}
                 </span>
               </footer>
               {!focused && (
@@ -346,8 +346,8 @@ export function Canvas({
         {snapshot.modules.length === 0 && (
           <div className="empty-board">
             <span className="pixel-mark">▦</span>
-            <h2>给想法一个位置</h2>
-            <p>点击「添加模块」，或告诉 Agent 你想完成什么。</p>
+            <h2>暂无模块</h2>
+            <p>添加模块，或告诉 Agent 目标。</p>
           </div>
         )}
         {draft && (

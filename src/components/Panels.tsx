@@ -32,37 +32,80 @@ import { ProposalDiff, ProposalHistory } from "./ProposalReview";
 import { isDesktop } from "../lib/api";
 import {
   connectionLabels,
-  AgentScope,
   policyBlockReason,
   policyLabels,
   workspacePolicy,
 } from "./PolicyPanel";
+import { userFacingError } from "../lib/ui-copy";
 function errorMessage(error: unknown) {
-  return error instanceof Error ? error.message : String(error);
+  return userFacingError(error);
+}
+type DisplayConnection = NonNullable<WorkspaceSnapshot["connection"]>;
+function connectionHeading(
+  name: string,
+  connection: DisplayConnection | undefined,
+) {
+  if (!connection) return "未连接";
+  if (connection.status !== "not_installed")
+    return connectionLabels[connection.status];
+  const probe = connection.probe;
+  if (!probe) return `未找到 ${name}`;
+  if (!probe.hostAvailable) return `未找到 ${name} 宿主`;
+  if (!probe.adapterAvailable) return "未找到 ACP 适配器";
+  if (!probe.acpAvailable) return "ACP 检查失败";
+  return "连接检查未通过";
+}
+function connectionFailureHint(
+  name: string,
+  connection: DisplayConnection | undefined,
+) {
+  if (!connection) return null;
+  if (connection.status === "not_installed") {
+    const probe = connection.probe;
+    if (probe?.hostAvailable && probe.adapterAvailable && !probe.acpAvailable)
+      return "ACP 检查失败 · 查看连接诊断并确认 CLI 或适配器路径。";
+    if (probe && !probe.hostAvailable)
+      return `未找到 ${name} · 检查 CLI 路径后再探测。`;
+    if (probe && !probe.adapterAvailable)
+      return "未找到 ACP 适配器 · 检查适配器路径后再探测。";
+    return `未找到 ${name} · 查看连接诊断。`;
+  }
+  if (connection.status === "not_authenticated")
+    return `请先在 ${name} 完成登录，再重新连接。`;
+  if (connection.status === "error") return "连接失败 · 查看诊断。";
+  return null;
+}
+function diagnosticState(value: string | undefined, kind: "session" | "auth") {
+  if (!value || value === "not_checked") return "待检查";
+  if (value === "passed") return kind === "session" ? "已连接" : "已认证";
+  if (value === "request_succeeded") return "已认证";
+  if (value === "auth_required") return "待认证";
+  if (value === "failed" || value === "request_failed") return "检查失败";
+  return value;
 }
 export const moduleTypes = [
   {
     type: "conversation" as const,
     title: "对话",
-    description: "描述目标，让 Agent 开始协作",
+    description: "开始对话",
     icon: MessageSquare,
   },
   {
     type: "planner" as const,
     title: "时间规划",
-    description: "把任务安排在合适的时间",
+    description: "规划任务",
     icon: CalendarDays,
   },
   {
     type: "document" as const,
     title: "Markdown 文档",
-    description: "留住想法，沉淀工作成果",
+    description: "编辑内容",
     icon: FileText,
   },
   {
     type: "dashboard" as const,
     title: "数据看板",
-    description: "一眼了解进展与工作区状态",
+    description: "查看数据",
     icon: LayoutDashboard,
   },
 ];
@@ -79,7 +122,6 @@ export function CreatePanel({
     [error, setError] = useState("");
   return (
     <Dialog title="添加一个模块" onClose={onClose}>
-      <p className="dialog-intro">为正在做的事，留一块独立的空间。</p>
       <div className="type-grid">
         {moduleTypes.map((t) => (
           <button
@@ -162,8 +204,8 @@ export function ReviewPanel({
       <Dialog title="审批中心" onClose={onClose}>
         <div className="empty-state">
           <ShieldCheck size={32} />
-          <h3>所有审批已处理</h3>
-          <p>待审批不代表修改已应用；以下记录展示真实处理结果。</p>
+          <h3>暂无待审批</h3>
+          {(snapshot.moduleProposals ?? []).length > 0 && <p>历史记录在下方</p>}
         </div>
         <ProposalHistory proposals={snapshot.moduleProposals ?? []} />
       </Dialog>
@@ -217,7 +259,15 @@ export function ReviewPanel({
           <h3>{p.title}</h3>
         </div>
       </div>
-      <p className="dialog-intro">{p.description}</p>
+      <p className="dialog-intro">
+        {p.kind === "agent_permission"
+          ? `${providerName(snapshot.agent)} 请求一次本机权限。`
+          : p.kind === "create_module"
+            ? "将在当前工作区创建模块。"
+            : p.kind === "write_file"
+              ? "检查文件差异后再决定是否写入。"
+              : "检查模块差异后再决定是否应用。"}
+      </p>
       {p.kind === "module_changes" ? (
         <ProposalDiff approval={p} />
       ) : p.kind === "write_file" ? (
@@ -226,6 +276,10 @@ export function ReviewPanel({
             <FileText size={14} />
             {p.filePath}
           </div>
+          <dl className="metadata">
+            <dt>基于版本</dt>
+            <dd>{p.revision || "未提供"}</dd>
+          </dl>
           <div className="diff">
             <section>
               <h4>
@@ -262,15 +316,22 @@ export function ReviewPanel({
           </p>
         </div>
       )}
+      <details className="proposal-validation-details">
+        <summary>查看校验规则</summary>
+        <p className="help-text">
+          批准前会再次核对当前权限、目标版本、路径和变更范围；模块布局还会检查尺寸与碰撞。
+        </p>
+        <p className="help-text">原始请求说明：{p.description}</p>
+      </details>
       <div className="permission-note">
         <ShieldCheck size={15} />
         {blocked
           ? stale
-            ? "权限已变化，此 Agent 审批已失效。请拒绝后发起新任务。"
+            ? "权限已变化 · 请重新发起任务"
             : "当前权限不允许执行此 Agent 提议；你仍可拒绝它或手动编辑工作区。"
           : p.kind === "agent_permission"
-            ? `仅答复此条 ${providerName(snapshot.agent)} 权限请求，不代表其全部自有工具已受托管。`
-            : "仅批准这一项操作。文件写入前会核对版本，防止覆盖新修改。"}
+            ? "仅本次请求；Agent 自有工具仍由其自身控制"
+            : "仅本次操作 · 应用前复核版本"}
       </div>
       {error && (
         <p className="inline-error" role="alert">
@@ -472,12 +533,14 @@ export function SettingsPanel({
   dispatch,
   onClose,
   onChoose,
+  onPolicy,
 }: {
   appInfo: AppInfoState;
   snapshot: WorkspaceSnapshot;
   dispatch: (a: WorkspaceAction) => Promise<void>;
   onClose: () => void;
   onChoose: () => void;
+  onPolicy?: () => void;
 }) {
   const [agent, setAgent] = useState<AgentDescriptor>(snapshot.agent),
     [env, setEnv] = useState(JSON.stringify(snapshot.agent.env)),
@@ -536,10 +599,17 @@ export function SettingsPanel({
   const displayConnection = agentDirty ? undefined : snapshot.connection;
   const provider = agentProvider(agent);
   const name = providers[provider].name;
+  const displayConnectionHeading = connectionHeading(name, displayConnection);
+  const displayFailureHint = connectionFailureHint(name, displayConnection);
   const connectionBusy =
     snapshot.connection?.status === "connecting" ||
     snapshot.connection?.status === "stopping";
   const nativeBlocked = policyBlockReason({ ...snapshot, agent });
+  const connectionDiagnosticsOpen = [
+    "not_installed",
+    "not_authenticated",
+    "error",
+  ].includes(displayConnection?.status ?? "");
   const operateAgent = async (
     type: "probe_agent" | "connect_agent" | "disconnect_agent",
   ) => {
@@ -575,7 +645,7 @@ export function SettingsPanel({
       <p className="help-text">
         宿主：{providers[provider].host} · ACP 入口：
         {providers[provider].command}
-        。命令存在仅代表可探测，握手与会话成功后才显示已连接。
+        。已找到命令；连接后显示已连接。
       </p>
       <label className="field">
         环境变量 · JSON
@@ -601,8 +671,8 @@ export function SettingsPanel({
   );
   return (
     <Dialog title="工作区设置" onClose={onClose}>
-      <div className="settings-section app-identity">
-        <h3>当前应用 · {appVersionLabel(appInfo)}</h3>
+      <details className="settings-section settings-details app-identity">
+        <summary>版本与诊断信息 · {appVersionLabel(appInfo)}</summary>
         {appInfo.status === "ready" ? (
           <dl className="metadata">
             <dt>应用名称</dt>
@@ -645,66 +715,22 @@ export function SettingsPanel({
             正在核实运行应用的版本与来源…
           </p>
         )}
-      </div>
+      </details>
       <div className="settings-section">
-        <h3>
-          <ShieldCheck size={17} />
-          系统权限策略
-        </h3>
-        <div
-          className="policy-options system-policy"
-          role="group"
-          aria-label="系统权限策略"
-        >
-          {(
-            [
-              ["workspace", "按工作区设置"],
-              ["allow_all", "全部允许"],
-              ["deny_all", "全部不允许"],
-            ] as const
-          ).map(([mode, label]) => (
-            <button
-              key={mode}
-              className={policy.system === mode ? "chosen" : ""}
-              aria-pressed={policy.system === mode}
-              disabled={settingsBusy}
-              onClick={() =>
-                void changeSetting({ type: "set_system_policy", mode })
-              }
-            >
-              {label}
-            </button>
-          ))}
+        <h3>工作区</h3>
+        <div className="workspace-summary">
+          <strong>{snapshot.name}</strong>
+          <span>{isDesktop ? "本地" : "预览"}</span>
         </div>
-        <p className="help-text">
-          当前生效：{policyLabels[policy.effective]} ·{" "}
-          {policy.source === "system" ? "系统" : "工作区"}
-          。系统策略作用于当前应用渠道的所有工作区；全局覆盖期间保留原工作区选择。全部不允许仍可手动编辑和调整布局。
-        </p>
-        <label className="toggle-row">
-          <span>允许模块重叠</span>
-          <input
-            type="checkbox"
-            checked={snapshot.allowOverlap}
-            disabled={settingsBusy}
-            onChange={(e) =>
-              void changeSetting({
-                type: "set_overlap",
-                allow: e.target.checked,
-              })
-            }
-          />
-        </label>
-        {settingsError && (
-          <p className="inline-error" role="alert">
-            {settingsError}
-          </p>
-        )}
+        <p className="path-text">{snapshot.rootPath}</p>
+        <button className="button" onClick={onChoose}>
+          选择工作区目录
+        </button>
       </div>
       <div className="settings-section">
         <h3>
           <TerminalSquare size={17} />
-          Agent Registry
+          Agent 连接
         </h3>
         <form
           onSubmit={async (e) => {
@@ -763,27 +789,25 @@ export function SettingsPanel({
             (provider === "codex" ? (
               <>
                 <p className="help-text" data-testid="codex-runtime-help">
-                  ACP 随应用自动就绪，连接时会自动检查，无需先点探测。应用仅内置
-                  ACP 适配器和 Node 运行时；Codex CLI
-                  使用本机已安装的官方版本，不会在 Atrio 内安装
-                  CLI。通常保留默认配置即可。
+                  Codex 连接时自动检查；Atrio 不安装 CLI，默认配置即可。
                 </p>
                 <p className="help-text" data-testid="codex-auth-help">
-                  复用本机 Codex 已有登录，Atrio
-                  不保存账号或密钥。若尚未登录，请先在 Codex
-                  中登录，再回到这里连接。程序检查通过不代表已登录。
+                  复用本机 Codex 登录；Atrio 不保存密钥。待登录时先在 Codex
+                  完成登录。
                 </p>
                 <details data-testid="codex-advanced">
-                  <summary>高级设置 · 外部适配器与运行配置</summary>
+                  <summary>高级连接设置</summary>
                   <p className="help-text">
-                    通常保留默认配置即可。如需使用外部 ACP
-                    适配器，可以填写其绝对路径；更改后需重新保存并确认本工作区运行范围。
+                    外部适配器、命令参数、环境变量和工作目录。
                   </p>
                   {agentConfigurationFields}
                 </details>
               </>
             ) : (
-              agentConfigurationFields
+              <details data-testid="advanced-connection">
+                <summary>高级连接设置</summary>
+                {agentConfigurationFields}
+              </details>
             ))}
           {agent.transport === "stdio" ? (
             <>
@@ -793,129 +817,130 @@ export function SettingsPanel({
                   配置，再确认本工作区的运行范围并连接。修改命令或配置会撤销之前的运行确认。
                 </p>
               ) : (
-                <AgentScope
-                  snapshot={snapshot}
-                  dispatch={dispatch}
-                  busy={busy || connectionBusy}
-                />
+                <div className="agent-scope-link">
+                  <span>
+                    {nativeBlocked ||
+                      `当前权限：${policyLabels[policy.effective]}。`}
+                  </span>
+                  <button
+                    type="button"
+                    className="button"
+                    onClick={onPolicy}
+                    disabled={!onPolicy}
+                  >
+                    打开权限与安全
+                  </button>
+                </div>
               )}
               <div className="connection-state" role="status">
-                <strong>
-                  {provider === "codex" &&
-                  displayConnection?.status === "not_installed"
-                    ? "Codex 程序探测未通过"
-                    : connectionLabels[
-                        displayConnection?.status ?? "disconnected"
-                      ]}
-                </strong>
-                <p>
-                  {displayConnection?.message ||
-                    (provider === "codex"
-                      ? "保存配置并确认运行范围后，点击连接即可；无需单独探测。"
-                      : `保存配置后探测本机 ${name}，再连接。`)}
+                <strong>{displayConnectionHeading}</strong>
+                <p className="connection-summary">
+                  宿主：
+                  {displayConnection?.probe
+                    ? displayConnection.probe.hostAvailable
+                      ? "已找到"
+                      : "未找到"
+                    : "待检查"}
+                  {" · ACP："}
+                  {displayConnection?.probe
+                    ? displayConnection.probe.adapterAvailable
+                      ? "已找到"
+                      : "未找到"
+                    : "待检查"}
+                  {" · 会话："}
+                  {displayConnection?.status === "connected"
+                    ? "已连接"
+                    : diagnosticState(
+                        displayConnection?.probe?.sessionStatus,
+                        "session",
+                      )}
+                  {" · 认证："}
+                  {diagnosticState(
+                    displayConnection?.probe?.authenticationStatus,
+                    "auth",
+                  )}
                 </p>
-                {displayConnection?.status === "not_installed" &&
-                  (provider === "codex" ? (
-                    <p>
-                      请查看下方运行时详情，区分程序缺失、不可执行或 ACP
-                      检查失败。应用内置 ACP 与 Node，但不会代替你安装本机 Codex
-                      CLI；请确认官方 Codex
-                      已安装。使用外部适配器时请核对其绝对路径；此状态不代表账号未登录。
-                    </p>
-                  ) : (
-                    <p>
-                      请检查 {name} 宿主与 {providers[provider].command}{" "}
-                      适配器，或填写已安装 ACP 入口的绝对路径，再探测。
-                    </p>
-                  ))}
-                {displayConnection?.status === "not_authenticated" &&
-                  (provider === "codex" ? (
-                    <p>
-                      请先在 Codex 中登录，再回到 Atrio 重新连接。Atrio
-                      复用本机已有登录，不保存账号或密钥。
-                    </p>
-                  ) : (
-                    <p>
-                      请在终端完成 {providers[provider].host}{" "}
-                      的账户或模型认证，再重新连接；不要在这里粘贴密钥。
-                    </p>
-                  ))}
-                {(displayConnection?.providerVersion ||
-                  (provider === "hermes" &&
-                    displayConnection?.hermesVersion)) && (
-                  <p>
-                    {name} 入口版本：
-                    {displayConnection?.providerVersion ||
-                      displayConnection?.hermesVersion}
-                  </p>
-                )}
-                {displayConnection?.providerSessionId && (
-                  <p className="path-text">
-                    会话：{displayConnection.providerSessionId}
-                  </p>
-                )}
-                {displayConnection?.probe && (
-                  <details open={provider === "codex"}>
-                    <summary>
-                      {provider === "codex"
-                        ? "Codex 运行时与认证详情"
-                        : "宿主与 ACP 入口详情"}
-                    </summary>
-                    <p>
-                      宿主：
-                      {provider === "codex"
-                        ? displayConnection.probe.hostAvailable
-                          ? "检查通过"
-                          : "检查未通过"
-                        : displayConnection.probe.hostAvailable
-                          ? "已找到"
-                          : "未找到"}{" "}
-                      · {displayConnection.probe.hostVersion || "版本未确认"}
-                    </p>
-                    <p className="path-text">
-                      {displayConnection.probe.hostExecutable}
-                    </p>
-                    <p>
-                      ACP 入口：
-                      {provider === "codex"
-                        ? displayConnection.probe.adapterAvailable
-                          ? "检查通过"
-                          : "检查未通过"
-                        : displayConnection.probe.adapterAvailable
-                          ? "已找到"
-                          : "未找到"}{" "}
-                      · {displayConnection.probe.version || "版本未确认"}
-                    </p>
-                    <p className="path-text">
-                      {displayConnection.probe.executable}
-                    </p>
-                    <p>{displayConnection.probe.detail}</p>
-                    {provider === "codex" && (
+                <p>
+                  {displayFailureHint ||
+                    (displayConnection?.status === "connected"
+                      ? "已连接"
+                      : provider === "codex"
+                        ? "确认运行范围后连接；连接时自动检查。"
+                        : `检查本机 ${name} 后连接。`)}
+                </p>
+                {(displayConnection || error) && (
+                  <details
+                    className="connection-diagnostics"
+                    data-testid="connection-diagnostics"
+                    open={connectionDiagnosticsOpen || !!error}
+                  >
+                    <summary>连接诊断</summary>
+                    {displayConnection?.message && (
+                      <p className="path-text">{displayConnection.message}</p>
+                    )}
+                    {error && <p className="inline-error">{error}</p>}
+                    {(displayConnection?.providerVersion ||
+                      (provider === "hermes" &&
+                        displayConnection?.hermesVersion)) && (
                       <p>
-                        ACP 检查：
-                        {displayConnection.probe.acpAvailable
-                          ? "通过"
-                          : "未通过"}
-                        （独立于账户登录）
+                        {name} 入口版本：
+                        {displayConnection?.providerVersion ||
+                          displayConnection?.hermesVersion}
                       </p>
                     )}
-                    <p>
-                      握手：{displayConnection.probe.handshakeStatus}；会话：
-                      {displayConnection.probe.sessionStatus}；认证/服务调用：
-                      {displayConnection.probe.authenticationStatus}
-                    </p>
+                    {displayConnection?.providerSessionId && (
+                      <p className="path-text">
+                        会话：{displayConnection.providerSessionId}
+                      </p>
+                    )}
+                    {displayConnection?.probe && (
+                      <>
+                        <p>
+                          宿主：
+                          {displayConnection.probe.hostAvailable
+                            ? "已找到"
+                            : "未找到"}{" "}
+                          ·{" "}
+                          {displayConnection.probe.hostVersion || "版本未确认"}
+                        </p>
+                        <p className="path-text">
+                          {displayConnection.probe.hostExecutable}
+                        </p>
+                        <p>
+                          ACP 入口：
+                          {displayConnection.probe.adapterAvailable
+                            ? "已找到"
+                            : "未找到"}{" "}
+                          · {displayConnection.probe.version || "版本未确认"}
+                        </p>
+                        <p className="path-text">
+                          {displayConnection.probe.executable}
+                        </p>
+                        <p>{displayConnection.probe.detail}</p>
+                        <p>
+                          ACP 检查：
+                          {displayConnection.probe.acpAvailable
+                            ? "通过"
+                            : "未通过"}
+                        </p>
+                        <p>
+                          握手：{displayConnection.probe.handshakeStatus}
+                          ；会话：
+                          {displayConnection.probe.sessionStatus}
+                          ；认证/服务调用：
+                          {displayConnection.probe.authenticationStatus}
+                        </p>
+                      </>
+                    )}
                   </details>
                 )}
               </div>
-              {nativeBlocked && (
-                <p className="inline-warning">{nativeBlocked}</p>
-              )}
-              <p className="help-text">
-                Workspace MCP
-                负责受控的模块读取与提案，工具展示通知不会直接执行写入。仅使用{" "}
-                {name} 实际报告的能力；切换 Provider
-                或重启后建立新连接，旧聊天不等于模型上下文续接。
-              </p>
+              <details className="connection-notes">
+                <summary>连接与安全说明</summary>
+                <p className="help-text">
+                  重连后建立新会话；历史记录保存在本地，请重新提供上下文。
+                </p>
+              </details>
             </>
           ) : (
             <div className="agent-capabilities">
@@ -988,14 +1013,70 @@ export function SettingsPanel({
         </form>
       </div>
       <div className="settings-section">
-        <h3>本地工作区</h3>
-        <p className="path-text">{snapshot.rootPath}</p>
-        <button className="button" onClick={onChoose}>
-          选择工作区目录
-        </button>
+        <h3>
+          <ShieldCheck size={17} />
+          系统权限策略
+        </h3>
+        <div
+          className="policy-options system-policy"
+          role="group"
+          aria-label="系统权限策略"
+        >
+          {(
+            [
+              ["workspace", "按工作区设置"],
+              ["allow_all", "全部允许"],
+              ["deny_all", "全部不允许"],
+            ] as const
+          ).map(([mode, label]) => (
+            <button
+              key={mode}
+              className={policy.system === mode ? "chosen" : ""}
+              aria-pressed={policy.system === mode}
+              disabled={settingsBusy}
+              onClick={() =>
+                void changeSetting({ type: "set_system_policy", mode })
+              }
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <p className="help-text">
+          当前生效：{policyLabels[policy.effective]} ·{" "}
+          {policy.source === "system" ? "系统" : "工作区"}
+          。系统策略作用于当前应用渠道的所有工作区；全部不允许仍可手动编辑。
+        </p>
+        <label className="toggle-row">
+          <span>允许模块重叠</span>
+          <input
+            type="checkbox"
+            checked={snapshot.allowOverlap}
+            disabled={settingsBusy}
+            onChange={(e) =>
+              void changeSetting({
+                type: "set_overlap",
+                allow: e.target.checked,
+              })
+            }
+          />
+        </label>
+        {settingsError && (
+          <p className="inline-error" role="alert">
+            {settingsError}
+          </p>
+        )}
       </div>
     </Dialog>
   );
+}
+function eventSummary(kind: string) {
+  if (/fail|error/.test(kind)) return "操作失败";
+  if (/permission|approval/.test(kind)) return "权限与审批";
+  if (/proposal|module/.test(kind)) return "模块变更";
+  if (/connect|session/.test(kind)) return "连接状态";
+  if (/prompt|message|task/.test(kind)) return "任务进展";
+  return "工作区变更";
 }
 export function EventList({ snapshot }: { snapshot: WorkspaceSnapshot }) {
   const events = [...snapshot.events].reverse();
@@ -1004,8 +1085,7 @@ export function EventList({ snapshot }: { snapshot: WorkspaceSnapshot }) {
       <div className="page-heading">
         <div>
           <span className="eyebrow">ACTIVITY LOG</span>
-          <h1>每一步，都有记录。</h1>
-          <p>会话、工具、审批与工作区变更的事件时间线。</p>
+          <h1>运行记录</h1>
         </div>
         <span className="outlined-badge">
           <Activity size={14} />
@@ -1028,7 +1108,7 @@ export function EventList({ snapshot }: { snapshot: WorkspaceSnapshot }) {
                 })}
               </small>
             </span>
-            <code
+            <strong
               className={
                 /fail|error/.test(e.kind)
                   ? "danger-text"
@@ -1037,9 +1117,46 @@ export function EventList({ snapshot }: { snapshot: WorkspaceSnapshot }) {
                     : ""
               }
             >
-              {e.kind}
-            </code>
-            <p>{e.message}</p>
+              {eventSummary(e.kind)}
+            </strong>
+            <details className="event-details">
+              <summary>查看详情</summary>
+              <code>{e.kind}</code>
+              <p>{e.message}</p>
+              {(e.actor ||
+                e.sessionId ||
+                e.connectorSeq != null ||
+                e.context) && (
+                <dl className="event-raw" aria-label="原始事件字段">
+                  {e.actor && (
+                    <>
+                      <dt>来源</dt>
+                      <dd>{e.actor}</dd>
+                    </>
+                  )}
+                  {e.sessionId && (
+                    <>
+                      <dt>会话</dt>
+                      <dd>{e.sessionId}</dd>
+                    </>
+                  )}
+                  {e.connectorSeq != null && (
+                    <>
+                      <dt>连接序号</dt>
+                      <dd>{e.connectorSeq}</dd>
+                    </>
+                  )}
+                  {e.context && (
+                    <>
+                      <dt>运行上下文</dt>
+                      <dd>
+                        <pre>{JSON.stringify(e.context, null, 2)}</pre>
+                      </dd>
+                    </>
+                  )}
+                </dl>
+              )}
+            </details>
           </div>
         ))}
       </div>

@@ -202,17 +202,20 @@ describe("App identity and workspace activation", () => {
     ).toContain("禁止运行");
     expect(
       container.querySelector(".workspace-policy-button")?.textContent,
-    ).toContain("来源：系统");
+    ).toContain("权限：禁止运行 · 系统");
     expect(
       container.querySelector(".composer-policy-note")?.textContent,
     ).toContain("仍可手动编辑");
+    expect(
+      container.querySelector(".composer-status")?.textContent,
+    ).not.toContain("权限：");
     await click(".workspace-policy-button");
     expect(
       container.querySelector<HTMLButtonElement>(".policy-options button")
         ?.disabled,
     ).toBe(true);
     const settingsButton = [...container.querySelectorAll("button")].find((b) =>
-      b.textContent?.includes("前往系统权限设置"),
+      b.textContent?.includes("设置与连接"),
     )!;
     await act(async () => settingsButton.click());
     const workspaceButton = [
@@ -229,7 +232,7 @@ describe("App identity and workspace activation", () => {
     ).toContain("完全访问");
     expect(
       container.querySelector(".workspace-policy-button")?.textContent,
-    ).toContain("来源：工作区");
+    ).toContain("权限：完全访问 · 工作区");
   });
 
   it("keeps the cancel control available while Hermes awaits a permission reply", async () => {
@@ -324,8 +327,20 @@ describe("App identity and workspace activation", () => {
     api.dispatchAction.mockResolvedValue(initial);
     await mount();
     expect(container.querySelector(".brand")?.textContent).toContain("Atrio");
-    expect(shown("context-scope")).toContain("已保存版本");
-    expect(shown("context-scope")).toContain("不发送未保存草稿");
+    expect(shown("context-scope")).toContain("上下文：Plan（已保存）");
+    expect(shown("context-scope")).toContain("工具：当前工作区");
+    expect(
+      container.querySelector<HTMLDetailsElement>(
+        '[data-testid="context-scope"]',
+      )?.open,
+    ).toBe(false);
+    await act(async () =>
+      container
+        .querySelector<HTMLDetailsElement>('[data-testid="context-scope"]')
+        ?.querySelector("summary")
+        ?.click(),
+    );
+    expect(shown("context-scope")).toContain("未保存草稿不进入本轮");
     const input = container.querySelector<HTMLTextAreaElement>(
       '[aria-label="发送给 Agent 的消息"]',
     )!;

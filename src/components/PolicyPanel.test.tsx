@@ -90,6 +90,16 @@ function settings() {
     />
   );
 }
+function policyPanel() {
+  return (
+    <PolicyPanel
+      snapshot={snapshot}
+      dispatch={dispatch}
+      onClose={() => {}}
+      onSettings={() => {}}
+    />
+  );
+}
 function approval(overrides: Partial<Approval> = {}): Approval {
   return {
     id: "p1",
@@ -136,7 +146,16 @@ describe("policy and Hermes interface", () => {
   it("requires explicit scope confirmation for Hermes ask and blocks unverified restricted mode", async () => {
     await render(settings());
     expect(button("连接 Hermes").disabled).toBe(true);
-    expect(container.textContent).toContain("不保证每次文件操作都会询问");
+    expect(
+      container.querySelector<HTMLDetailsElement>(".policy-details")?.open,
+    ).toBeUndefined();
+    await render(policyPanel());
+    expect(container.textContent).toContain(
+      "允许 Hermes 在此工作区运行；它的自有工具可能访问本机",
+    );
+    expect(
+      container.querySelector<HTMLDetailsElement>(".policy-details")?.open,
+    ).toBe(false);
     await act(async () =>
       container
         .querySelector<HTMLInputElement>(".scope-confirm input")!
@@ -154,7 +173,7 @@ describe("policy and Hermes interface", () => {
     snapshot.policy!.effective = "restricted";
     await render(settings());
     expect(button("连接 Hermes").disabled).toBe(true);
-    expect(policyBlockReason(snapshot)).toContain("完整只读约束尚未验证");
+    expect(policyBlockReason(snapshot)).toContain("只读模式暂不可连接");
   });
   it("requires changed Hermes configuration to be saved before accepting scope or connecting", async () => {
     snapshot.agent = {
@@ -331,9 +350,8 @@ describe("shared provider configuration and typed review", () => {
       snapshot.connection = undefined;
       await render(settings());
       expect(button(`连接 ${name}`).disabled).toBe(true);
-      expect(
-        container.querySelector(".hermes-scope")?.textContent,
-      ).not.toContain("Hermes");
+      expect(container.querySelector(".hermes-scope")).toBeNull();
+      await render(policyPanel());
       await act(async () =>
         container
           .querySelector<HTMLInputElement>(".scope-confirm input")!
@@ -405,7 +423,7 @@ describe("shared provider configuration and typed review", () => {
     expect(container.textContent).toContain("移除任务");
     expect(container.textContent).toContain("Review contract");
     expect(container.textContent).toContain("Original plan → Updated plan");
-    expect(container.textContent).toContain("待审批 · 尚未应用");
+    expect(container.textContent).toContain("待审批 · 未写入");
     expect(button("取消任务")).toBeTruthy();
     await click("批准并应用");
     expect(dispatch).toHaveBeenLastCalledWith({
@@ -474,13 +492,13 @@ describe("bundled Codex runtime guidance", () => {
     expect(
       container.querySelector('[data-testid="codex-runtime-help"]')
         ?.textContent,
-    ).toContain("应用仅内置 ACP 适配器和 Node 运行时");
+    ).toContain("连接时自动检查");
     expect(
       container.querySelector('[data-testid="codex-auth-help"]')?.textContent,
-    ).toContain("程序检查通过不代表已登录");
+    ).toContain("复用本机 Codex 登录");
     const connection = container.querySelector(".connection-state")!;
     expect(connection.querySelector("strong")?.textContent).toBe(
-      "Codex 程序探测未通过",
+      "ACP 检查失败",
     );
     expect(connection.querySelector("details")?.open).toBe(true);
     expect(connection.textContent).toContain(
@@ -502,7 +520,7 @@ describe("bundled Codex runtime guidance", () => {
     snapshot.connection!.probe!.acpAvailable = true;
     await render(settings());
     expect(container.querySelector(".connection-state")?.textContent).toContain(
-      "请先在 Codex 中登录",
+      "请先在 Codex 完成登录",
     );
     expect(
       container.querySelector(".connection-state strong")?.textContent,
@@ -548,10 +566,10 @@ describe("bundled Codex runtime guidance", () => {
     expect(
       container.querySelector('[data-testid="codex-runtime-help"]')
         ?.textContent,
-    ).toContain("无需先点探测");
+    ).toContain("连接时自动检查");
     expect(
       container.querySelector('[data-testid="codex-auth-help"]')?.textContent,
-    ).toContain("复用本机 Codex 已有登录");
+    ).toContain("复用本机 Codex 登录");
     expect(
       container.querySelector<HTMLDetailsElement>(
         '[data-testid="codex-advanced"]',

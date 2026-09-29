@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { Settings2, ShieldCheck } from "lucide-react";
 import type {
-  AgentConnection,
   PolicyMode,
   WorkspaceAction,
   WorkspacePolicy,
@@ -14,22 +13,10 @@ import {
   providers,
   scopeAccepted,
 } from "../lib/providers";
+import { connectionStatusLabels, policyModeLabels } from "../lib/ui-copy";
 
-export const policyLabels: Record<PolicyMode, string> = {
-  disabled: "禁止运行",
-  restricted: "受限 / 只读",
-  ask: "询问",
-  full: "完全访问",
-};
-export const connectionLabels: Record<AgentConnection["status"], string> = {
-  not_installed: "未找到宿主或适配器",
-  not_authenticated: "待认证",
-  disconnected: "未连接",
-  connecting: "正在连接",
-  connected: "已连接",
-  stopping: "正在停止",
-  error: "连接错误",
-};
+export const policyLabels = policyModeLabels;
+export const connectionLabels = connectionStatusLabels;
 export function workspacePolicy(snapshot: WorkspaceSnapshot): WorkspacePolicy {
   return (
     snapshot.policy ?? {
@@ -46,12 +33,12 @@ export function workspacePolicy(snapshot: WorkspaceSnapshot): WorkspacePolicy {
 export function policyBlockReason(snapshot: WorkspaceSnapshot): string | null {
   const policy = workspacePolicy(snapshot);
   if (policy.effective === "disabled")
-    return "当前权限禁止 Agent 运行；你仍可手动编辑和调整布局。";
+    return "Agent 已停用 · 仍可手动编辑和调整布局";
   if (snapshot.agent.transport === "stdio") {
     if (policy.effective === "restricted")
-      return `${providerName(snapshot.agent)} 的完整只读约束尚未验证，受限模式不能连接或发送任务。`;
+      return "只读模式暂不可连接 · 查看权限";
     if (policy.effective === "ask" && !scopeAccepted(policy, snapshot.agent))
-      return `请先在工作区权限中明确接受 ${providerName(snapshot.agent)} 本次本机运行范围。`;
+      return "先确认 Agent 运行范围 · 打开权限与安全";
   }
   return null;
 }
@@ -70,16 +57,9 @@ export function AgentScope({
   const [saving, setSaving] = useState(false),
     [error, setError] = useState("");
   return (
-    <div className="hermes-scope">
-      <p>
-        {name}{" "}
-        是本机进程，起始工作目录不是沙箱。其自有文件、命令和网络工具未由此工作区完整托管。
-        {providers[provider].profile}
-      </p>
-      <p>
-        工作区模块工具的写入由 Host 统一校验与审批。{name}{" "}
-        自有工具仅在它实际发来权限请求时可审批，不保证每次文件操作都会询问。受限
-        / 只读尚未验证，当前禁止该模式连接 {name}。
+    <div className="agent-scope hermes-scope">
+      <p className="agent-scope-summary">
+        {name} 在本机运行；工作区模块修改由 Host 校验并按规则审批。
       </p>
       {policy.effective === "ask" && (
         <label className="scope-confirm">
@@ -100,18 +80,34 @@ export function AgentScope({
               }
             }}
           />
-          <span>
-            我接受 {name}{" "}
-            在本工作区的本机运行范围，并了解它的自有工具未被完整托管。
-          </span>
+          <span>允许 {name} 在此工作区运行；它的自有工具可能访问本机。</span>
         </label>
       )}
       {policy.effective === "full" && (
-        <p>
-          已选择完全访问。经 Host 处理的写入仍校验路径、模块版本和权限；{name}{" "}
-          自有工具不受这些 Host 检查完整覆盖。
+        <p className="policy-consequence">
+          内容修改可自动应用；布局变更仍需确认。
         </p>
       )}
+      {policy.effective === "restricted" && (
+        <p className="policy-consequence">
+          只读模式暂不可连接；请查看权限与安全。
+        </p>
+      )}
+      <details className="policy-details">
+        <summary>运行范围</summary>
+        <div>
+          <p>
+            {name} 从当前工作目录启动；文件、命令和网络能力取决于 Agent
+            自身设置。工作区模块写入仍经过 Host 的路径、revision、schema
+            和审批校验。
+          </p>
+          <p>{providers[provider].profile}</p>
+          <p>
+            {name} 自有工具仅在它实际发来权限请求时可审批；ACP
+            权限答复只覆盖当前请求。
+          </p>
+        </div>
+      </details>
       {error && (
         <p className="inline-error" role="alert">
           {error}
@@ -135,7 +131,7 @@ export function PolicyPanel({
   const [busy, setBusy] = useState(false),
     [error, setError] = useState("");
   return (
-    <Dialog title="工作区权限" onClose={onClose}>
+    <Dialog title="权限与安全" onClose={onClose}>
       <div className="policy-summary">
         <ShieldCheck size={24} />
         <div>
@@ -146,16 +142,21 @@ export function PolicyPanel({
           <p>{snapshot.name}</p>
         </div>
       </div>
-      <p className="path-text">{snapshot.rootPath}</p>
+      <p className="path-text">工作区：{snapshot.rootPath}</p>
+      <p className="policy-intro">
+        {snapshot.agent.transport === "stdio"
+          ? `${providerName(snapshot.agent)} 在本机运行；工作区模块修改由 Host 校验并按规则审批。`
+          : "当前 Agent 使用本地演示；工作区模块修改仍由 Host 校验并按规则审批。"}
+      </p>
       {policy.source === "system" && (
         <p className="inline-warning">
-          系统策略正在覆盖此工作区。原工作区选择“{policyLabels[policy.local]}
-          ”已保留，恢复“按工作区设置”后生效。
+          系统策略覆盖当前渠道的所有工作区。原工作区选择“
+          {policyLabels[policy.local]}”已保留，恢复“按工作区设置”后生效。
         </p>
       )}
       {!policy.workspaceTrusted && (
         <p className="inline-warning">
-          这是尚未确认局部权限的工作区，复制或迁移后的工作区不会自动继承旧授权。
+          此工作区尚未确认局部权限；复制或迁移后需重新确认。
         </p>
       )}
       <div className="policy-options" role="group" aria-label="工作区权限模式">
@@ -181,19 +182,40 @@ export function PolicyPanel({
           </button>
         ))}
       </div>
-      <p className="help-text">
-        权限变化会取消当前 Agent 任务并使旧 Agent
-        提议失效。恢复允许不会重新执行旧任务。禁止 Agent
-        运行仍允许你手动编辑和调整布局。
+      <p className="policy-consequence">
+        权限变更会停止当前 Agent 任务并使旧提案失效；手动编辑仍可用。
       </p>
       {snapshot.agent.transport === "stdio" ? (
         <AgentScope snapshot={snapshot} dispatch={dispatch} busy={busy} />
       ) : (
-        <p className="help-text">
-          当前为 Mock：Host
-          控制的文件写入与模块提议遵循此权限；完全访问仍保留路径、文档版本和数据校验。
+        <p className="agent-scope-summary">
+          当前为本地演示；Host 控制的文件写入与模块提议遵循此权限。
         </p>
       )}
+      <div className="policy-details-list">
+        <details className="policy-details">
+          <summary>权限与撤销</summary>
+          <p>
+            系统策略覆盖当前渠道的所有工作区；恢复“按工作区设置”后各工作区的原选择重新生效。撤权不会重放旧任务。
+          </p>
+        </details>
+        <details className="policy-details">
+          <summary>数据与上下文</summary>
+          <p>
+            本轮默认引用已保存模块版本；未保存草稿不进入本轮。历史保存在本地，重连后建立新会话，请重新提供上下文。
+          </p>
+        </details>
+        <details className="policy-details">
+          <summary>审批与记录</summary>
+          <p>提案批准后才写入；事件和审批记录可在运行记录中查看。</p>
+        </details>
+        <details className="policy-details">
+          <summary>Provider 工具</summary>
+          <p>
+            ACP 权限答复只覆盖当前请求；Agent 自有工具的能力由 Provider 控制。
+          </p>
+        </details>
+      </div>
       {error && (
         <p className="inline-error" role="alert">
           {error}
@@ -202,7 +224,7 @@ export function PolicyPanel({
       <div className="dialog-actions">
         <button className="button" onClick={onSettings}>
           <Settings2 size={15} />
-          前往系统权限设置
+          设置与连接
         </button>
       </div>
     </Dialog>

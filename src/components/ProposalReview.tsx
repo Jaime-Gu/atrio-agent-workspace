@@ -1,12 +1,7 @@
 import type { Approval, ModuleProposal, WorkspaceModule } from "../lib/types";
+import { proposalStatusLabels as sharedProposalStatusLabels } from "../lib/ui-copy";
 
-export const proposalStatusLabels: Record<ModuleProposal["status"], string> = {
-  pending: "待审批 · 尚未应用",
-  applied: "已应用",
-  rejected: "已拒绝 · 未应用",
-  conflict: "版本冲突 · 未应用",
-  cancelled: "已取消 · 未应用",
-};
+export const proposalStatusLabels = sharedProposalStatusLabels;
 function parseModule(value: string | null): WorkspaceModule | null {
   try {
     const parsed: unknown = JSON.parse(value || "null");
@@ -61,9 +56,7 @@ export function ProposalDiff({ approval }: { approval: Approval }) {
     .filter(Boolean);
   return (
     <div className="module-proposal-diff">
-      <p className="inline-warning">
-        待审批，尚未写入。批准时 Host 会再次核对模块版本、权限、尺寸和布局碰撞。
-      </p>
+      <p className="inline-warning">等待审批：尚未写入</p>
       <dl className="metadata">
         <dt>目标模块</dt>
         <dd>
@@ -100,6 +93,12 @@ export function ProposalDiff({ approval }: { approval: Approval }) {
           {taskRows}
         </section>
       )}
+      <details className="proposal-validation-details">
+        <summary>查看校验规则</summary>
+        <p className="help-text">
+          应用前会复核模块版本、当前权限、尺寸和布局碰撞。
+        </p>
+      </details>
       {before?.content !== after.content && after.type === "document" && (
         <div className="diff">
           <section>
