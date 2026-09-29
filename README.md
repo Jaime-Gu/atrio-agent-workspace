@@ -4,9 +4,7 @@
 
 一个可在本地运行的个人 Agent 工作区初版。用可移动、缩放和聚焦的模块组织对话、计划、Markdown 文档与数据概览，验证「描述目标 → Agent 提议 → 用户审批 → 保存成果」的完整交互。
 
-可选择本地 Mock、Hermes、Claude Code 或 Codex ACP 入口。Hermes 与 Claude Code 已完成真实模块工具预验收；Codex 的ACP实现和已知路径保留，真机验证按用户决定后置。连接失败不会静默回退Mock。
-
-本轮统一版本0.0.5，左上品牌Atrio；这是有意重设软件版本，不降低数据库schema。现有Bundle ID和数据目录保持兼容。当前能力、固定依赖和Workspace MCP说明见 [0.0.5说明](docs/ATRIO_005.md)，最终渠道验收见固定Handoff。
+可选择本地 Mock、Hermes、Claude Code 或 Codex ACP 入口。Hermes 与 Claude Code 已完成真实模块工具预验收。
 
 ## 连接 Hermes
 
