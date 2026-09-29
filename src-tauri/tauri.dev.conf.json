@@ -1,0 +1,27 @@
+{
+  "productName": "Atrio WorkSpace Dev",
+  "identifier": "dev.pixel.workspace.dev",
+  "build": {
+    "beforeDevCommand": "npm run frontend:dev",
+    "beforeBuildCommand": "npm run build:dev",
+    "frontendDist": "../dist/dev"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Atrio WorkSpace Dev",
+        "width": 1440,
+        "height": 980,
+        "minWidth": 960,
+        "minHeight": 700,
+        "resizable": true,
+        "backgroundColor": "#F6F5ED"
+      }
+    ]
+  },
+  "bundle": {
+    "targets": [
+      "app"
+    ]
+  }
+}

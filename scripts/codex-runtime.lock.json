@@ -1,0 +1,188 @@
+{
+  "schemaVersion": 1,
+  "provider": "codex",
+  "platform": "darwin",
+  "architecture": "arm64",
+  "resourceRoot": "work/resources.noindex/agents/codex",
+  "versions": {
+    "adapter": "1.13.1",
+    "node": "22.23.3"
+  },
+  "manifestSha256": "0c13d475740e32cb363e35bc28b0ab56aa506d01f46f977b952de09cf8ca96bb",
+  "files": [
+    {
+      "path": "LICENSES/@agentclientprotocol__codex-acp-LICENSE",
+      "sha256": "72ea310b40e1ee2c4aa61935d22065155c50bfde288b114c9cfd3e1fa34f8049",
+      "bytes": 10760,
+      "executable": false
+    },
+    {
+      "path": "LICENSES/@agentclientprotocol__sdk-LICENSE",
+      "sha256": "6ed4f049cce59e05197d585bdf8a39980b45d546d6ea718ee344555f3a867c3a",
+      "bytes": 10783,
+      "executable": false
+    },
+    {
+      "path": "LICENSES/bundle-name-license",
+      "sha256": "5c932d88256b4ab958f64a856fa48e8bd1f55bc1d96b8149c65689e0c61789d3",
+      "bytes": 1117,
+      "executable": false
+    },
+    {
+      "path": "LICENSES/default-browser-id-license",
+      "sha256": "5c932d88256b4ab958f64a856fa48e8bd1f55bc1d96b8149c65689e0c61789d3",
+      "bytes": 1117,
+      "executable": false
+    },
+    {
+      "path": "LICENSES/default-browser-license",
+      "sha256": "5c932d88256b4ab958f64a856fa48e8bd1f55bc1d96b8149c65689e0c61789d3",
+      "bytes": 1117,
+      "executable": false
+    },
+    {
+      "path": "LICENSES/define-lazy-prop-license",
+      "sha256": "5c932d88256b4ab958f64a856fa48e8bd1f55bc1d96b8149c65689e0c61789d3",
+      "bytes": 1117,
+      "executable": false
+    },
+    {
+      "path": "LICENSES/diff-LICENSE",
+      "sha256": "eda81a415869e67809f6a9f3fd6056062cb83a462118e07eec5e92b2e0c40ce9",
+      "bytes": 1546,
+      "executable": false
+    },
+    {
+      "path": "LICENSES/is-docker-license",
+      "sha256": "5c932d88256b4ab958f64a856fa48e8bd1f55bc1d96b8149c65689e0c61789d3",
+      "bytes": 1117,
+      "executable": false
+    },
+    {
+      "path": "LICENSES/is-in-ssh-license",
+      "sha256": "5c932d88256b4ab958f64a856fa48e8bd1f55bc1d96b8149c65689e0c61789d3",
+      "bytes": 1117,
+      "executable": false
+    },
+    {
+      "path": "LICENSES/is-inside-container-license",
+      "sha256": "5c932d88256b4ab958f64a856fa48e8bd1f55bc1d96b8149c65689e0c61789d3",
+      "bytes": 1117,
+      "executable": false
+    },
+    {
+      "path": "LICENSES/is-wsl-license",
+      "sha256": "5c932d88256b4ab958f64a856fa48e8bd1f55bc1d96b8149c65689e0c61789d3",
+      "bytes": 1117,
+      "executable": false
+    },
+    {
+      "path": "LICENSES/node-LICENSE",
+      "sha256": "c738ae413cf561f174e34f6961f8ca458aae2369a73640dda6234c629b98bcc4",
+      "bytes": 145485,
+      "executable": false
+    },
+    {
+      "path": "LICENSES/node-source.json",
+      "sha256": "0bfcb497c81b8dd354a01b1a3fe7fe0879d81cef475d9848ec5ac05192e4f987",
+      "bytes": 264,
+      "executable": false
+    },
+    {
+      "path": "LICENSES/npm-sources.json",
+      "sha256": "9070794365f3728ddb70e3d4f8cd740eae0922750330b897555652db8aa7652d",
+      "bytes": 4860,
+      "executable": false
+    },
+    {
+      "path": "LICENSES/open-license",
+      "sha256": "5c932d88256b4ab958f64a856fa48e8bd1f55bc1d96b8149c65689e0c61789d3",
+      "bytes": 1117,
+      "executable": false
+    },
+    {
+      "path": "LICENSES/powershell-utils-license",
+      "sha256": "5c932d88256b4ab958f64a856fa48e8bd1f55bc1d96b8149c65689e0c61789d3",
+      "bytes": 1117,
+      "executable": false
+    },
+    {
+      "path": "LICENSES/run-applescript-license",
+      "sha256": "5c932d88256b4ab958f64a856fa48e8bd1f55bc1d96b8149c65689e0c61789d3",
+      "bytes": 1117,
+      "executable": false
+    },
+    {
+      "path": "LICENSES/third-party.json",
+      "sha256": "7dbf99d410ba259da5060bb41b5f24a01b0b3d8f660f03884d44136b34c3aa94",
+      "bytes": 1603,
+      "executable": false
+    },
+    {
+      "path": "LICENSES/vscode-jsonrpc-License.txt",
+      "sha256": "ec9ee83580841e8eb687aca9867f221503809ba6426c7f876ede17d91b9fcfd0",
+      "bytes": 1095,
+      "executable": false
+    },
+    {
+      "path": "LICENSES/vscode-jsonrpc-thirdpartynotices.txt",
+      "sha256": "a89123562fe364dc8e969e85614eb6c1f8452afe131d6e42bd1314bb2d092b04",
+      "bytes": 623,
+      "executable": false
+    },
+    {
+      "path": "LICENSES/wsl-utils-license",
+      "sha256": "5c932d88256b4ab958f64a856fa48e8bd1f55bc1d96b8149c65689e0c61789d3",
+      "bytes": 1117,
+      "executable": false
+    },
+    {
+      "path": "LICENSES/wsl-utils__node_modules__powershell-utils-license",
+      "sha256": "5c932d88256b4ab958f64a856fa48e8bd1f55bc1d96b8149c65689e0c61789d3",
+      "bytes": 1117,
+      "executable": false
+    },
+    {
+      "path": "LICENSES/zod-LICENSE",
+      "sha256": "3f1189b28e3866e0d979968d466b78f813f76827cfdca1fbb124cc0a5c8841f8",
+      "bytes": 1072,
+      "executable": false
+    },
+    {
+      "path": "adapter/index.js",
+      "sha256": "4c1f6c00e67c2ace5a96f0e0fe6e812502a48827a403014d4b68373464f55fce",
+      "bytes": 1500380,
+      "executable": false
+    },
+    {
+      "path": "adapter/package.json",
+      "sha256": "233b1fb7b326e689d58900cb2947333614ba78dab501a7fdba04bae98d55df98",
+      "bytes": 90,
+      "executable": false
+    },
+    {
+      "path": "bin/codex-acp",
+      "sha256": "275877539da3b390ffd9dd8a39dcb3007668b8b008d3a3d33e524eb8b7fcd06c",
+      "bytes": 387,
+      "executable": true
+    },
+    {
+      "path": "bin/node",
+      "sha256": "68f4d07ca49e0500cc135c7e0a445093e228e42e126ac22306d045f0a8c2636b",
+      "bytes": 112925600,
+      "executable": true
+    },
+    {
+      "path": "codex-resources/README.txt",
+      "sha256": "1c52b4558d6d8abc07a80c6e2f7ecde09be082fd5a68648d5324315c17d9a200",
+      "bytes": 196,
+      "executable": false
+    },
+    {
+      "path": "manifest.json",
+      "sha256": "0c13d475740e32cb363e35bc28b0ab56aa506d01f46f977b952de09cf8ca96bb",
+      "bytes": 6360,
+      "executable": false
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "name": "pixel-workspace",
+  "version": "0.0.5",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --mode web",
+    "build": "node scripts/check-version.mjs && tsc -b && vite build --mode web",
+    "preview": "node scripts/candidate.mjs preview",
+    "tauri": "node scripts/tauri.mjs",
+    "test": "vitest run src",
+    "format": "prettier --write src vite.config.ts",
+    "format:check": "prettier --check src vite.config.ts",
+    "frontend:dev": "vite --mode native-dev",
+    "build:dev": "node scripts/check-version.mjs && tsc -b && vite build --mode native-dev",
+    "build:beta": "node scripts/check-version.mjs && tsc -b && vite build --mode native-beta",
+    "desktop:dev": "bash scripts/dev-macos.sh",
+    "desktop:dev:build": "bash scripts/build-macos.sh dev",
+    "desktop:beta:build": "bash scripts/build-macos.sh beta",
+    "version:check": "node scripts/check-version.mjs",
+    "candidate:freeze": "node scripts/candidate.mjs freeze",
+    "candidate:check": "node scripts/candidate.mjs check",
+    "candidate:build": "node scripts/candidate.mjs build",
+    "candidate:preview": "node scripts/candidate.mjs preview",
+    "candidate:test": "node --test scripts/candidate.test.mjs scripts/package-codex-runtime.test.mjs"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.8.0",
+    "@tauri-apps/plugin-dialog": "^2.4.0",
+    "lucide-react": "^0.468.0",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "react-markdown": "^10.1.0"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.8.4",
+    "@types/react": "^19.1.10",
+    "@types/react-dom": "^19.1.9",
+    "@vitejs/plugin-react": "^5.0.2",
+    "jsdom": "^30.1.1",
+    "prettier": "^3.9.9",
+    "typescript": "~5.9.2",
+    "vite": "^7.1.3",
+    "vitest": "^4.1.11"
+  }
+}

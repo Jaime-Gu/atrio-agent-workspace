@@ -1,0 +1,66 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Atrio WorkSpace Beta",
+  "version": "0.0.5",
+  "identifier": "dev.pixel.workspace",
+  "build": {
+    "beforeDevCommand": "npm run frontend:dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build:beta",
+    "frontendDist": "../dist/beta"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Atrio WorkSpace Beta",
+        "width": 1440,
+        "height": 980,
+        "minWidth": 960,
+        "minHeight": 700,
+        "resizable": true,
+        "backgroundColor": "#F6F5ED"
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: http://asset.localhost data:; font-src 'self' data:; connect-src ipc: http://ipc.localhost; object-src 'none'; frame-src 'none'; base-uri 'self'",
+      "devCsp": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: http://asset.localhost data:; font-src 'self' data:; connect-src ipc: http://ipc.localhost http://localhost:1420 ws://localhost:1420; object-src 'none'; frame-src 'none'; base-uri 'self'"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": [
+      "app",
+      "dmg"
+    ],
+    "category": "Productivity",
+    "shortDescription": "Local-first modular agent workspace",
+    "longDescription": "An interactive desktop prototype with a persistent modular canvas, a mock agent, document review, and local workspaces.",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns"
+    ],
+    "macOS": {
+      "minimumSystemVersion": "12.0",
+      "signingIdentity": "-",
+      "dmg": {
+        "windowSize": {
+          "width": 660,
+          "height": 420
+        },
+        "appPosition": {
+          "x": 180,
+          "y": 200
+        },
+        "applicationFolderPosition": {
+          "x": 480,
+          "y": 200
+        }
+      }
+    },
+    "resources": {
+      "../work/resources.noindex/agents/codex/": "agents/codex/"
+    }
+  }
+}
