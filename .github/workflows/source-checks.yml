@@ -1,0 +1,45 @@
+name: Shared frontend compilation
+
+on:
+  push:
+    branches:
+      - main
+      - "macos/**"
+      - "windows/**"
+      - "feature/**"
+      - "chore/**"
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: source-checks-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    name: Frontend / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      matrix:
+        os: [macos-14, windows-2022]
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "24.18.0"
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Verify application versions
+        run: npm run version:check
+      - name: Compile Dev frontend
+        run: npm run build:dev
+      - name: Compile Beta frontend
+        run: npm run build:beta
