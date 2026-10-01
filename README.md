@@ -1,6 +1,8 @@
 # Atrio WorkSpace · 0.0.6 体验版本
 
-> 接手与继续开发请先读 [持续更新 Handoff 主手册](/Users/user/Documents/Codex/2026-09-27/users-user-documents-codex-2026-09-2/outputs/pixel-workspace-handoff.md)。所有版本都是体验版本，按 `web → dev → beta` 验收与命名；每次落实迭代及时更新同一路径。
+仓库协作入口：[目录与分支](docs/REPOSITORY.md) · [提交与合并](CONTRIBUTING.md) · [macOS](docs/platforms/macos.md) · [Windows](docs/platforms/windows.md)。当前共享源码为 0.0.6；Windows 实机代码等待接入，平台状态分别记录。
+
+> 当前 0.0.6 使用 `Dev → Beta` 验收。跨电脑协作使用以上仓库内文档；历史候选与验收报告继续保留在发布归档及本机持续更新 Handoff 中。
 
 一个可在本地运行的个人 Agent 工作区初版。用可移动、缩放和聚焦的模块组织对话、计划、Markdown 文档与数据概览，验证「描述目标 → Agent 提议 → 用户审批 → 保存成果」的完整交互。
 
