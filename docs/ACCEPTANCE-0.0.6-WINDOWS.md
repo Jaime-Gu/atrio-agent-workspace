@@ -79,8 +79,8 @@ macOS 初次 CI 的 `a_briefly_inherited_process_lock_is_retried_before_reportin
 | ACP 协议与两轮同会话 | `PASS`（synthetic ACP） | `native-02/acp-completed-turn-{1,2}.txt`、`acp-session-reuse-verified.json`：两轮完成且复用同 session，真实模型调用 0 |
 | GUI 工作区切换 | `PASS` | `native-02/workspace-switched-confirmed.txt`、`acp-after-switch-confirmed.json`：运行中切换回收 parent/child 为 0，工作区 B 的 3 模块持久化 |
 | 本机随包 Codex ACP initialize | `PASS`（协议握手） | `work/evidence.noindex/codex-initialize-only-verified.json`：实际 ACP 1.13.1 / Node 22.23.3、协议 1，312ms；私有 Job、leader、读取/写入线程均回收，未发 newSession/prompt/模型或文件请求 |
-| Dev/Beta NSIS 安装及资源完整性 | `PASS` | `candidate-02-dev-install.json`、`beta-install.json`：exit 0；安装目录含空格与中文。安装 runtime 精确 28 文件 / 88,685,465 bytes，见 `candidate-02-beta-installed-runtime.json` |
-| Beta 重新安装 | `PASS` | `candidate-02-beta-reinstall.json`、`beta-reinstalled-runtime.json`：exit 0，工作区数据库保留，runtime 哈希一致 |
+| Dev/Beta NSIS 安装及资源完整性 | `PASS` | `candidate-02-dev-install.json`、`candidate-02-beta-install.json`：exit 0；安装目录含空格与中文。安装 runtime 精确 28 文件 / 88,685,465 bytes，见 `candidate-02-beta-installed-runtime.json` |
+| Beta 重新安装 | `PASS` | `candidate-02-beta-reinstall.json`、`candidate-02-beta-reinstalled-runtime.json`：exit 0，工作区数据库保留，runtime 哈希一致 |
 | 移动完整运行目录 | `PASS` | `candidate-02-relocated-runtime.json`、`native-02/relocated-codex-launch-plan.txt`：完整 Beta 目录移走后旧目录不存在，运行 EXE 路径为新目录，原生探测定位相邻 `agents/codex/bin/node.exe` 与 ACP 1.13.1 |
 | 安装后生产 EXE MCP stdio | `PASS`（synthetic Host） | `candidate-02-installed-dev-mcp.json`、`candidate-02-installed-beta-mcp.json`，各 11 checks；`providerCalls=0`、`workspaceDatabasesOpened=0` |
 | AppContainer 修复与旧工作区副本打开 | `PASS` | Windows 路径/containment 回归通过；`native-02/legacy-copy-open-summary.json`：完整备份副本原生打开，3 模块、无加载失败、未删除数据库 |
