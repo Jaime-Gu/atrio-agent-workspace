@@ -101,7 +101,9 @@ pub struct ConnectorEvent {
 /// in a worker. Successful calls mean queued, not a completed handshake or task.
 pub trait AgentConnector: Send {
     /// Only the process created and owned by this connector; never name-based.
-    fn managed_process_id(&self) -> Option<u32> { None }
+    fn managed_process_id(&self) -> Option<u32> {
+        None
+    }
     fn initialize(&mut self, context: &ConnectorContext) -> Result<(), String>;
     fn new_session(&mut self, context: &ConnectorContext) -> Result<(), String>;
     fn confirm_session_persisted(

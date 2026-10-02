@@ -1,7 +1,8 @@
 use super::*;
+use std::fs;
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
-use std::fs;
+use std::process::Child;
 use std::sync::{Mutex, MutexGuard};
 
 // One active provider is the supported app topology. These tests also inspect
@@ -20,15 +21,22 @@ impl Fixture {
         let serial = PROCESS_FIXTURES
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
-        let root = std::env::temp_dir().join(format!("pixel-native-acp-{}", uuid::Uuid::new_v4()));
+        let root =
+            std::env::temp_dir().join(format!("pixel native 中文 acp {}", uuid::Uuid::new_v4()));
         fs::create_dir_all(&root).unwrap();
         let root = root.canonicalize().unwrap();
+        #[cfg(unix)]
         let command = root.join("hermes-fixture");
+        #[cfg(windows)]
+        let command = root.join("hermes-fixture.py");
         let script = format!(
             "#!/usr/bin/python3\nMODE = {}\n",
             serde_json::to_string(mode).unwrap()
         ) + r#"
 import json, os, signal, subprocess, sys, time
+if os.name=='nt':
+    import msvcrt
+    msvcrt.setmode(sys.stdout.fileno(), os.O_BINARY)
 if '--version' in sys.argv:
     print('Hermes Agent v0.21.3 (fixture)'); sys.exit(0)
 if '--check' in sys.argv:
@@ -55,7 +63,7 @@ for line in sys.stdin:
     elif method=='session/prompt':
         pending=request['id'];turn+=1
         if MODE in ('cancel_timeout','cancel_detached','drop'):
-            child=subprocess.Popen(['/usr/bin/python3','-c','import signal,time; signal.signal(signal.SIGTERM,signal.SIG_IGN);time.sleep(60)'],start_new_session=MODE=='cancel_detached')
+            child=subprocess.Popen([sys.executable,'-c','import signal,time; signal.signal(signal.SIGTERM,signal.SIG_IGN);time.sleep(60)'],start_new_session=MODE=='cancel_detached',creationflags=(subprocess.CREATE_NEW_PROCESS_GROUP if os.name=='nt' and MODE=='cancel_detached' else 0))
             open(ROOT+'/child-pid','w').write(str(child.pid));continue
         if MODE=='cancel':update('before cancel');continue
         if MODE=='permission':
@@ -384,6 +392,7 @@ fn native_shutdown_gives_protocol_cancel_a_grace_window_and_clears_owned_pid() {
 fn read_pid(path: &Path) -> u32 {
     fs::read_to_string(path).unwrap().parse().unwrap()
 }
+#[cfg(unix)]
 fn running(pid: u32) -> bool {
     let output = Command::new("/bin/ps")
         .args(["-p", &pid.to_string(), "-o", "stat="])
@@ -391,6 +400,35 @@ fn running(pid: u32) -> bool {
         .unwrap();
     let status = String::from_utf8_lossy(&output.stdout);
     !status.trim().is_empty() && !status.trim().starts_with('Z')
+}
+#[cfg(windows)]
+fn running(pid: u32) -> bool {
+    use std::os::windows::io::{AsRawHandle, FromRawHandle, OwnedHandle};
+    use windows_sys::Win32::System::Threading::{
+        OpenProcess, WaitForSingleObject, PROCESS_SYNCHRONIZE,
+    };
+    unsafe {
+        let raw = OpenProcess(PROCESS_SYNCHRONIZE, 0, pid);
+        if raw.is_null() {
+            return false;
+        }
+        let process = OwnedHandle::from_raw_handle(raw);
+        WaitForSingleObject(process.as_raw_handle(), 0)
+            == windows_sys::Win32::Foundation::WAIT_TIMEOUT
+    }
+}
+fn unrelated_process() -> Child {
+    #[cfg(unix)]
+    {
+        Command::new("/bin/sleep").arg("10").spawn().unwrap()
+    }
+    #[cfg(windows)]
+    {
+        Command::new(std::env::var_os("ATRIO_TEST_PYTHON").expect("test Python"))
+            .args(["-c", "import time;time.sleep(10)"])
+            .spawn()
+            .unwrap()
+    }
 }
 
 #[test]
@@ -407,7 +445,7 @@ fn native_cancel_timeout_and_drop_reap_owned_group_without_harming_unrelated_pro
         }
         let parent = read_pid(&fixture.root.join("pid"));
         let child = read_pid(&fixture.root.join("child-pid"));
-        let mut unrelated = Command::new("/bin/sleep").arg("10").spawn().unwrap();
+        let mut unrelated = unrelated_process();
         if mode != "drop" {
             connector.cancel(&fixture.context()).unwrap();
             until(&mut connector, |event| {
@@ -478,7 +516,7 @@ fn native_finished_worker_is_not_silently_polled_as_connecting_forever() {
 fn native_injects_only_host_mcp_and_preserves_legacy_hermes() {
     let fixture = Fixture::new("happy");
     let servers = vec![
-        json!({"name":"workspace","command":"/usr/bin/python3","args":["/synthetic/mcp.py"],"env":[{"name":"SCOPE","value":"synthetic-only"}]}),
+        json!({"name":"workspace","command":fixture.command.to_string_lossy(),"args":["synthetic-mcp"],"env":[{"name":"SCOPE","value":"synthetic-only"}]}),
     ];
     let mut connector = NativeAcpConnector::with_mcp(fixture.descriptor(), servers.clone());
     connect(&fixture, &mut connector, true);
@@ -549,4 +587,63 @@ fn legacy_descriptor_infers_hermes_and_explicit_provider_selects_only_known_entr
     );
     descriptor.provider = Some("unknown".into());
     assert!(NativeProvider::from_descriptor(&descriptor).is_err());
+}
+
+#[cfg(windows)]
+#[test]
+fn windows_stdin_backpressure_is_bounded_and_reaps_job() {
+    let fixture = Fixture::new("happy");
+    let python = PathBuf::from(std::env::var_os("ATRIO_TEST_PYTHON").expect("test Python"));
+    let args = vec!["-c".into(), "import time;time.sleep(60)".into()];
+    let mut process =
+        ManagedProcess::spawn(process_command(&python, &args, &fixture.root).unwrap()).unwrap();
+    let pid = process.group;
+    let start = Instant::now();
+    assert!(process
+        .send(&json!({"payload":"x".repeat(1024 * 1024)}))
+        .unwrap_err()
+        .contains("超时"));
+    process.finish().unwrap();
+    assert!(start.elapsed() < Duration::from_secs(3));
+    assert!(!running(pid));
+}
+
+#[cfg(windows)]
+#[test]
+fn windows_leader_exit_cannot_leave_descendant_or_reader_alive() {
+    let fixture = Fixture::new("happy");
+    let python = PathBuf::from(std::env::var_os("ATRIO_TEST_PYTHON").expect("test Python"));
+    let script = "import subprocess,sys,time; p=subprocess.Popen([sys.executable,'-c','import time;time.sleep(60)'],creationflags=subprocess.CREATE_NEW_PROCESS_GROUP);open('orphan-pid','w').write(str(p.pid))";
+    let args = vec!["-c".into(), script.into()];
+    let mut process =
+        ManagedProcess::spawn(process_command(&python, &args, &fixture.root).unwrap()).unwrap();
+    let deadline = Instant::now() + Duration::from_secs(3);
+    while process.child.try_wait().unwrap().is_none() {
+        assert!(Instant::now() < deadline);
+        thread::sleep(Duration::from_millis(10));
+    }
+    process.leader_reaped = true;
+    let descendant = read_pid(&fixture.root.join("orphan-pid"));
+    assert!(running(descendant));
+    process.finish().unwrap();
+    assert!(!running(descendant));
+    assert!(process.readers_finished_for_test());
+}
+
+#[cfg(windows)]
+#[test]
+fn windows_child_environment_is_allowlisted() {
+    let node = resolve_program("node", "node").unwrap();
+    let command = process_command(&node, &[], &std::env::temp_dir()).unwrap();
+    let keys = command
+        .get_envs()
+        .map(|(key, _)| key.to_string_lossy().to_ascii_uppercase())
+        .collect::<HashSet<_>>();
+    assert!(keys.contains("SYSTEMROOT"));
+    assert!(keys.contains("USERPROFILE"));
+    assert!(keys.contains("TEMP"));
+    assert!(keys.contains("PATH"));
+    assert!(!keys.contains("ANTHROPIC_API_KEY"));
+    assert!(!keys.contains("OPENAI_API_KEY"));
+    assert!(!keys.contains("CODEX_HOME"));
 }

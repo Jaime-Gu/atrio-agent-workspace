@@ -10,12 +10,13 @@ if (
   args.splice(1, 0, "--config", "src-tauri/tauri.dev.conf.json");
   console.log("Using isolated Pixel Workspace Dev configuration.");
 }
-const cli = path.join(
-  root,
-  "node_modules/.bin",
-  process.platform === "win32" ? "tauri.cmd" : "tauri",
-);
-const result = spawnSync(cli, args, {
+if (process.platform === "win32" && args[0] === "dev") {
+  args.push("--config", "src-tauri/tauri.windows.conf.json");
+} else if (process.platform === "win32" && !args.some((arg) => arg === "--config" || arg.startsWith("--config="))) {
+  args.push("--config", "src-tauri/tauri.windows.conf.json");
+}
+const cli = path.join(root, "node_modules/@tauri-apps/cli/tauri.js");
+const result = spawnSync(process.execPath, [cli, ...args], {
   cwd: root,
   stdio: "inherit",
   env: process.env,

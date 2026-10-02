@@ -10,6 +10,7 @@ import {
   selectWebBuild,
   frozenWebDirectory,
   uniqueId,
+  npmInvocation,
 } from "./candidate-lib.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -76,14 +77,19 @@ async function main() {
     if (channel === "web") {
       // The output location is owned by this build. Native builds never touch it.
       env.PIXEL_WEB_OUT_DIR = path.join(buildDir, "dist");
-      run("npm", ["run", "build"], env);
+      const npm = npmInvocation(["run", "build"]);
+      run(npm.command, npm.args, env);
       verifyCandidate(root, manifestPath);
       const record = recordBuild(root, channel, [env.PIXEL_WEB_OUT_DIR], env);
       selectWebBuild(root, record);
       console.log(JSON.stringify(record, null, 2));
     } else {
       // Existing native staging records app/DMG hashes after validating the source again.
-      run("bash", ["scripts/build-macos.sh", channel, ...args.slice(2)], env);
+      if (process.platform === "win32") {
+        run(process.execPath, ["scripts/windows/build-windows.mjs", channel, ...args.slice(2)], env);
+      } else {
+        run("bash", ["scripts/build-macos.sh", channel, ...args.slice(2)], env);
+      }
       verifyCandidate(root, manifestPath);
     }
   } else if (command === "preview") {

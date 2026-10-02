@@ -396,6 +396,8 @@ pub struct Kernel {
 
 impl Kernel {
     pub fn open(path: &Path) -> Result<Self, String> {
+        #[cfg(windows)]
+        crate::platform::windows::paths::validate_root_path(path)?;
         fs::create_dir_all(path).map_err(io_error)?;
         let root = fs::canonicalize(path).map_err(io_error)?;
         if !root.is_dir() {
@@ -2685,7 +2687,7 @@ fn normalize_agent(
                 agent.cwd = if relative.as_os_str().is_empty() {
                     String::new()
                 } else {
-                    relative.to_string_lossy().into_owned()
+                    portable_relative_path(relative)
                 };
             }
         }
@@ -2699,10 +2701,21 @@ fn normalize_agent(
         // if the user rolls back to the preserved previous application.
         String::new()
     } else {
-        relative.to_string_lossy().into_owned()
+        portable_relative_path(relative)
     };
     validate_agent(root, &agent)?;
     Ok(agent)
+}
+
+fn portable_relative_path(relative: &Path) -> String {
+    #[cfg(windows)]
+    {
+        relative.to_string_lossy().replace('\\', "/")
+    }
+    #[cfg(not(windows))]
+    {
+        relative.to_string_lossy().into_owned()
+    }
 }
 
 fn resolve_agent_cwd(root: &Path, cwd: &str) -> Result<PathBuf, String> {
@@ -2824,6 +2837,8 @@ fn load_events(connection: &Connection) -> Result<Vec<AgentEvent>, String> {
 /// Resolve each existing component, checking symlinks before creating or writing.
 /// Absolute paths and lexical traversal are never accepted by the file gateway.
 fn contained_path(root: &Path, relative: &str) -> Result<PathBuf, String> {
+    #[cfg(windows)]
+    crate::platform::windows::paths::validate_relative_path(relative)?;
     if relative.is_empty() || relative.contains('\0') || relative.contains('\\') {
         return Err("无效的工作区相对路径".into());
     }
@@ -2835,17 +2850,27 @@ fn contained_path(root: &Path, relative: &str) -> Result<PathBuf, String> {
         target.push(name);
         match fs::symlink_metadata(&target) {
             Ok(_) => {
+                #[cfg(windows)]
+                crate::platform::windows::paths::reject_reparse(&target)?;
                 target = fs::canonicalize(&target).map_err(io_error)?;
-                if !target.starts_with(root) {
-                    return Err("路径或软链接越过工作区边界".into());
+                #[cfg(windows)]
+                let contained = crate::platform::windows::paths::is_within(root, &target);
+                #[cfg(not(windows))]
+                let contained = target.starts_with(root);
+                if !contained {
+                    return Err(format!("路径或软链接越过工作区边界：{relative}"));
                 }
             }
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => (),
             Err(error) => return Err(io_error(error)),
         }
     }
-    if !target.starts_with(root) {
-        return Err("路径越过工作区边界".into());
+    #[cfg(windows)]
+    let contained = crate::platform::windows::paths::is_within(root, &target);
+    #[cfg(not(windows))]
+    let contained = target.starts_with(root);
+    if !contained {
+        return Err(format!("路径越过工作区边界：{relative}"));
     }
     Ok(target)
 }
@@ -2885,6 +2910,7 @@ fn atomic_write(
             .map_err(io_error)?;
         file.write_all(content.as_bytes()).map_err(io_error)?;
         file.sync_all().map_err(io_error)?;
+        drop(file);
         // Check again immediately before commit to catch external edits during preparation.
         let verified = contained_path(root, relative)?;
         if verified != target {
@@ -2898,10 +2924,7 @@ fn atomic_write(
         if latest.as_deref() != expected {
             return Err("文件 revision 冲突：写入期间原文已变化".into());
         }
-        fs::rename(&temp, &verified).map_err(io_error)?;
-        fs::File::open(parent)
-            .and_then(|dir| dir.sync_all())
-            .map_err(io_error)?;
+        crate::platform::commit_replace(&temp, &verified).map_err(io_error)?;
         Ok(content_revision(content))
     })();
     if result.is_err() {
@@ -3275,6 +3298,52 @@ mod tests {
             assert!(atomic_write(&kernel.root, "notes/dangling.md", "blocked", None).is_err());
         }
     }
+    #[cfg(windows)]
+    #[test]
+    fn windows_root_names_are_rejected_before_directory_creation() {
+        let fixture = Fixture::new();
+        for path in [
+            fixture.path.join("aliased."),
+            fixture.path.join("stream:payload"),
+            fixture.path.join("NUL.txt"),
+        ] {
+            assert!(Kernel::open(&path).is_err(), "accepted {}", path.display());
+        }
+        assert!(!fixture.path.join("aliased").exists());
+        for path in [
+            "C:relative",
+            "\\\\server\\share\\workspace",
+            "\\\\.\\C:\\workspace",
+        ] {
+            assert!(Kernel::open(Path::new(path)).is_err(), "accepted {path}");
+        }
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_nested_absolute_cwd_is_saved_with_portable_separators_and_reopens() {
+        let fixture = Fixture::new();
+        let mut kernel = fixture.open();
+        fs::create_dir_all(kernel.root.join("projects/research")).unwrap();
+        let mut agent = kernel.state.agent.clone();
+        agent.cwd = kernel
+            .root
+            .join("projects/research")
+            .to_string_lossy()
+            .into_owned();
+        kernel
+            .dispatch(WorkspaceAction::SaveAgent { agent })
+            .unwrap();
+        assert_eq!(kernel.state.agent.cwd, "projects/research");
+        drop(kernel);
+        let kernel = fixture.open();
+        assert_eq!(kernel.state.agent.cwd, "projects/research");
+        assert_eq!(
+            resolve_agent_cwd(&kernel.root, &kernel.state.agent.cwd).unwrap(),
+            kernel.root.join("projects/research")
+        );
+    }
+
     #[test]
     fn audit_is_append_only_and_recent_window_is_bounded() {
         let fixture = Fixture::new();

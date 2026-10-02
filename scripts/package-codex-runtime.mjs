@@ -398,6 +398,23 @@ export function verifyAppRuntime(projectRoot, appPath) {
  * apparent size and keeps image sizing independent of filesystem allocation.
  */
 export function apparentBytes(directory) {
+  // macOS uses BSD du so sparse/allocated blocks do not affect DMG sizing.
+  // Windows has no /usr/bin/du; sum regular file lengths for cross-platform
+  // fixture checks and keep the same apparent-content-byte semantics.
+  if (process.platform === "win32") {
+    let total = 0;
+    function walk(relative = "") {
+      for (const name of readdirSync(path.join(directory, relative))) {
+        const rel = relative ? path.join(relative, name) : name;
+        const target = path.join(directory, rel);
+        const stat = lstatSync(target);
+        if (stat.isDirectory()) walk(rel);
+        else if (stat.isFile()) total += stat.size;
+      }
+    }
+    walk();
+    return total;
+  }
   const output = execFileSync("/usr/bin/du", ["-A", "-k", "-s", directory], {
     encoding: "utf8",
   });

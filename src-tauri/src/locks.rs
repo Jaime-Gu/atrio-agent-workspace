@@ -32,14 +32,24 @@ struct DirectoryLock {
     device: u64,
     #[cfg(unix)]
     inode: u64,
+    #[cfg(windows)]
+    guard: crate::platform::windows::locks::DirectoryGuard,
 }
 
 impl DirectoryLock {
     fn acquire(path: &Path, occupied: &str) -> Result<Self, String> {
-        #[cfg(not(unix))]
+        #[cfg(not(any(unix, windows)))]
         {
             let _ = (path, occupied);
             Err("当前平台尚未实现目录进程锁；为保护工作区，已停止打开".into())
+        }
+        #[cfg(windows)]
+        {
+            let root = fs::canonicalize(path).map_err(|e| format!("无法解析锁定目录：{e}"))?;
+            let guard = crate::platform::windows::locks::DirectoryGuard::acquire(&root, occupied)?;
+            let lock = Self { root, guard };
+            lock.ensure_valid()?;
+            Ok(lock)
         }
         #[cfg(unix)]
         {
@@ -91,9 +101,13 @@ impl DirectoryLock {
     }
 
     fn ensure_valid(&self) -> Result<(), String> {
-        #[cfg(not(unix))]
+        #[cfg(not(any(unix, windows)))]
         {
             Err("当前平台尚未实现目录进程锁".into())
+        }
+        #[cfg(windows)]
+        {
+            self.guard.ensure_valid(&self.root)
         }
         #[cfg(unix)]
         {
@@ -119,6 +133,8 @@ pub struct ChannelInstanceLock(DirectoryLock);
 
 impl ChannelInstanceLock {
     pub fn acquire(channel_data_directory: &Path) -> Result<Self, String> {
+        #[cfg(windows)]
+        crate::platform::windows::paths::validate_root_path(channel_data_directory)?;
         fs::create_dir_all(channel_data_directory)
             .map_err(|error| format!("无法创建应用数据目录：{error}"))?;
         DirectoryLock::acquire(channel_data_directory, "此渠道的 Atrio WorkSpace 已在运行")
@@ -211,7 +227,14 @@ impl WorkspaceLock {
             }
             Err("工作区外部写入句柄持续变化，无法确认旧应用已退出；为保护数据已停止接管，请稍后重试".into())
         }
-        #[cfg(not(target_os = "macos"))]
+        #[cfg(windows)]
+        {
+            // A PID alone is not proof of Job Object ownership. Do not exempt
+            // another process without its retained creation identity.
+            let _ = managed_group;
+            crate::platform::windows::locks::check_external_users(self.root())
+        }
+        #[cfg(not(any(target_os = "macos", windows)))]
         {
             Err("当前平台尚未实现历史写入者检查；为保护旧数据，已停止接管".into())
         }
@@ -362,6 +385,223 @@ fn parse_scoped_writers(
         }
     }
     Ok(writers)
+}
+
+#[cfg(all(test, windows))]
+mod windows_tests {
+    use super::*;
+    use std::{
+        io::{BufRead, BufReader, Write},
+        os::windows::process::CommandExt,
+        process::{Child, ChildStdout, Command, Stdio},
+    };
+
+    struct Fixture(PathBuf);
+    impl Fixture {
+        fn new() -> Self {
+            let root =
+                std::env::temp_dir().join(format!("atrio-windows-lock-{}", uuid::Uuid::new_v4()));
+            fs::create_dir_all(&root).unwrap();
+            Self(root)
+        }
+    }
+    impl Drop for Fixture {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.0);
+        }
+    }
+
+    struct ChildGuard {
+        child: Child,
+        _output: BufReader<ChildStdout>,
+    }
+    impl ChildGuard {
+        fn start(root: &Path, mode: &str) -> Self {
+            let mut child = Command::new(std::env::current_exe().unwrap())
+                .args(["--ignored", "windows_process_lock_helper", "--nocapture"])
+                .env("ATRIO_WINDOWS_LOCK_ROOT", root)
+                .env("ATRIO_WINDOWS_LOCK_MODE", mode)
+                .stdin(Stdio::piped())
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
+                .creation_flags(0x08000000)
+                .spawn()
+                .unwrap();
+            let mut output = BufReader::new(child.stdout.take().unwrap());
+            loop {
+                let mut line = String::new();
+                assert!(
+                    output.read_line(&mut line).unwrap() > 0,
+                    "Windows lock helper exited before ready"
+                );
+                if line.trim() == "ATRIO_WINDOWS_LOCK_READY" {
+                    break;
+                }
+            }
+            Self {
+                child,
+                _output: output,
+            }
+        }
+        fn crash(&mut self) {
+            self.child.kill().unwrap();
+            self.child.wait().unwrap();
+        }
+    }
+    impl Drop for ChildGuard {
+        fn drop(&mut self) {
+            let _ = self.child.kill();
+            let _ = self.child.wait();
+        }
+    }
+
+    #[test]
+    #[ignore = "subprocess helper invoked by Windows lock tests"]
+    fn windows_process_lock_helper() {
+        let Ok(root) = std::env::var("ATRIO_WINDOWS_LOCK_ROOT") else {
+            return;
+        };
+        let root = Path::new(&root);
+        let mode = std::env::var("ATRIO_WINDOWS_LOCK_MODE").unwrap();
+        let _workspace;
+        let _channel;
+        let _legacy;
+        match mode.as_str() {
+            "workspace" => _workspace = Some(WorkspaceLock::acquire(root).unwrap()),
+            "channel" => _channel = Some(ChannelInstanceLock::acquire(root).unwrap()),
+            "legacy" | "reader" => {
+                fs::create_dir_all(root.join(".workspace")).unwrap();
+                let database = root.join(".workspace/workspace.sqlite3");
+                fs::write(&database, b"synthetic fixture; never read by writer probe").unwrap();
+                _legacy = Some(
+                    fs::OpenOptions::new()
+                        .read(true)
+                        .write(mode == "legacy")
+                        .open(database)
+                        .unwrap(),
+                );
+            }
+            _ => panic!("unknown helper mode"),
+        }
+        println!("ATRIO_WINDOWS_LOCK_READY");
+        std::io::stdout().flush().unwrap();
+        let mut line = String::new();
+        std::io::stdin().read_line(&mut line).unwrap();
+    }
+
+    fn junction(target: &Path, alias: &Path) {
+        // Powershell literal strings escape apostrophes without interpolation.
+        let literal = |path: &Path| {
+            path.to_string_lossy()
+                .replace('\\', "/")
+                .replace('\'', "''")
+        };
+        let script = format!("$ErrorActionPreference='Stop'; New-Item -ItemType Junction -Path '{}' -Target '{}' | Out-Null", literal(alias), literal(target));
+        let executable = PathBuf::from(std::env::var_os("SystemRoot").unwrap())
+            .join("System32/WindowsPowerShell/v1.0/powershell.exe");
+        let output = Command::new(executable)
+            .args(["-NoProfile", "-NonInteractive", "-Command", &script])
+            .creation_flags(0x08000000)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    #[test]
+    fn windows_cross_process_lock_crash_releases_and_same_process_also_competes() {
+        let fixture = Fixture::new();
+        let mut child = ChildGuard::start(&fixture.0, "workspace");
+        assert!(WorkspaceLock::acquire(&fixture.0)
+            .unwrap_err()
+            .contains("另一个"));
+        child.crash();
+        let _guard = WorkspaceLock::acquire(&fixture.0).unwrap();
+        assert!(WorkspaceLock::acquire(&fixture.0).is_err());
+    }
+
+    #[test]
+    fn windows_channels_are_separate_but_their_workspace_lock_is_shared() {
+        let fixture = Fixture::new();
+        let dev = fixture.0.join("dev");
+        let _child = ChildGuard::start(&dev, "channel");
+        assert!(ChannelInstanceLock::acquire(&dev)
+            .unwrap_err()
+            .contains("此渠道"));
+        let _beta = ChannelInstanceLock::acquire(&fixture.0.join("beta")).unwrap();
+        let _workspace = WorkspaceLock::acquire(&fixture.0).unwrap();
+        assert!(WorkspaceLock::acquire(&fixture.0).is_err());
+    }
+
+    #[test]
+    fn windows_case_and_junction_aliases_compete_copies_are_independent() {
+        let fixture = Fixture::new();
+        let original = fixture.0.join("workspace");
+        let copy = fixture.0.join("copy");
+        fs::create_dir_all(&original).unwrap();
+        fs::create_dir_all(&copy).unwrap();
+        fs::write(original.join("manifest.json"), b"same manifest").unwrap();
+        fs::copy(original.join("manifest.json"), copy.join("manifest.json")).unwrap();
+        let alias = fixture.0.join("alias");
+        junction(&original, &alias);
+        let _child = ChildGuard::start(&original, "workspace");
+        assert!(WorkspaceLock::acquire(&alias).is_err());
+        assert!(WorkspaceLock::acquire(&fixture.0.join("WORKSPACE")).is_err());
+        WorkspaceLock::acquire(&copy).unwrap();
+    }
+
+    #[test]
+    fn windows_directory_replacement_invalidates_guard_and_lock_file_deletion_does_not() {
+        let fixture = Fixture::new();
+        let root = fixture.0.join("workspace");
+        fs::create_dir(&root).unwrap();
+        let guard = WorkspaceLock::acquire(&root).unwrap();
+        fs::write(root.join("workspace.lock"), "irrelevant").unwrap();
+        fs::remove_file(root.join("workspace.lock")).unwrap();
+        assert!(WorkspaceLock::acquire(&root).is_err());
+        let moved = fixture.0.join("moved");
+        fs::rename(&root, &moved).unwrap();
+        fs::create_dir(&root).unwrap();
+        assert!(guard.ensure_valid().unwrap_err().contains("替换"));
+        assert!(WorkspaceLock::acquire(&moved).is_err());
+    }
+
+    #[test]
+    fn windows_legacy_writer_blocks_takeover_and_later_write_boundary() {
+        let fixture = Fixture::new();
+        let guard = WorkspaceLock::acquire(&fixture.0).unwrap();
+        let mut child = ChildGuard::start(&fixture.0, "legacy");
+        let error = guard.check_external_writers().unwrap_err();
+        assert!(error.contains("仍被其他进程"), "{error}");
+        assert!(error.contains(&child.child.id().to_string()), "{error}");
+        drop(guard);
+        assert!(WorkspaceLock::acquire(&fixture.0).is_err());
+        child.crash();
+        WorkspaceLock::acquire(&fixture.0).unwrap();
+    }
+
+    #[test]
+    fn windows_readers_are_conservatively_rejected_because_access_mode_is_unknown() {
+        let fixture = Fixture::new();
+        let _child = ChildGuard::start(&fixture.0, "reader");
+        let error = WorkspaceLock::acquire(&fixture.0).unwrap_err();
+        assert!(error.contains("不能区分只读和写入"), "{error}");
+    }
+
+    #[test]
+    fn windows_internal_junction_fails_closed_without_traversing_it() {
+        let fixture = Fixture::new();
+        let outside = Fixture::new();
+        let alias = fixture.0.join("external");
+        junction(&outside.0, &alias);
+        assert!(crate::platform::windows::paths::reject_reparse(&alias).is_err());
+        assert!(WorkspaceLock::acquire(&fixture.0)
+            .unwrap_err()
+            .contains("reparse"));
+    }
 }
 
 #[cfg(all(test, target_os = "macos"))]

@@ -1,41 +1,46 @@
-# Windows
+# Windows 0.0.6
 
-状态：`PENDING_SOURCE_IMPORT`。Windows 实机代码等待上传，接收分支为 `windows/integration`。
+Windows 0.0.6 follows the shared 0.0.6 UI, DTO, revision, approval, permission, workspace persistence, and recovery contracts. The receiving branch is `windows/integration`; the release target is Windows x64 with `x86_64-pc-windows-msvc`.
 
-## 接收已有成果
+## Source and candidate identity
 
-1. 在 Windows 保存已有源码与改动，记录当前软件版本、候选编号和原始来源。
-2. 获取 `windows/integration`，在独立目录检查当前 0.0.6 共享源码与 Windows 成果的差异。
-3. 以原 Windows 接手材料 `0.0.5-atrio-02` 为比较依据，提取 Windows 平台变更；逐文件合并到接收分支，保留 0.0.6 公共界面和候选 12 的 Codex 行为。
-4. 将平台实现放入 `src-tauri/src/platform/windows/`，对应构建脚本放入 `scripts/windows/`，说明公共接口变化。
-5. 在 Windows 完成编译、原生功能和安装验收，提交 Pull Request 到 `main`，记录具体证据及未执行项目。
+- Candidate: `0.0.6-win-x64-01` (check the remote tags/releases before freezing; never rename a historical candidate).
+- `derivedFrom`: `0.0.5-atrio-02`.
+- `importedWindowsCandidate`: `0.0.5-win-x64-codex-10`.
+- Shared baseline and final merge commit are recorded in `docs/PROVENANCE-0.0.6.md` after the integration PR is merged.
+- The source tree has no inherited Git history. Freeze records a source fingerprint, runtime lock/hash, target, toolchain, and build artifact hashes.
 
-当前接收分支来源为建立目录结构后的共享 `main`。Windows 自己的旧提交或源码来源需单独记录。Mac 候选源码归档与 Codex 增量包保留原始来源身份。
+## Platform layout
 
-## 原生实现要求
+- Shared UI and contracts stay under `src/`.
+- Windows process, environment, job, IPC, path, lock, and filesystem code lives under `src-tauri/src/platform/windows/`; platform dispatch remains in `src-tauri/src/platform/mod.rs` and macOS files remain available for conditional compilation.
+- `scripts/windows/` contains runtime preparation, verification, candidate build, and adapter setup. `scripts/runtime/codex-runtime.windows-x64.lock.json` is generated from Windows files only.
+- `src-tauri/tauri.windows.conf.json` adds the Windows ICO, NSIS current-user installer, WebView2 bootstrapper, and runtime resource mapping. It is composed with `tauri.dev.conf.json` for Dev builds.
 
-| 范围       | Windows 实现要求                                                             |
-| ---------- | ---------------------------------------------------------------------------- |
-| Agent 启动 | 明确程序、argv、工作目录与环境；处理 `.exe`、`.cmd`、PATHEXT、空格和中文路径 |
-| 取消和退出 | 管理 Atrio 创建的进程树，验证读取线程退出及子进程回收                        |
-| 环境       | 受控保留 USERPROFILE、APPDATA、LOCALAPPDATA、TEMP/TMP 等必要变量             |
-| 工作区与锁 | 使用 Windows 物理目录身份和系统锁机制，覆盖占用、异常退出和跨渠道访问        |
-| 本机 IPC   | Windows 本机通信与当前用户访问控制，保留 session/run scope 校验              |
-| 文件持久化 | 覆盖原子替换、占用文件、路径规范化与中断恢复                                 |
-| Tauri      | Windows 配置、ICO 图标、WebView2、MSVC 目标和 NSIS EXE                       |
+## Codex ACP payload
 
-## Codex 随包资源
+The payload pins `@agentclientprotocol/codex-acp@1.13.1` and official Node `22.23.3` win-x64. It contains `bin/node.exe`, `adapter/index.js`, a minimal adapter package manifest, `manifest.json`, and `LICENSES/`. The launch plan is `node.exe adapter/index.js`; the official Codex CLI and user authentication stay outside the application.
 
-使用 `@agentclientprotocol/codex-acp@1.13.1` 和目标架构 Windows Node。当前 macOS 运行时采用 Node `22.23.3`，Windows 需要验证相应发行文件并记录来源与 SHA-256。
+```powershell
+npm ci
+node scripts/windows/package-codex-runtime-windows.mjs prepare [<adapter-dependencies>] [<node-v22.23.3-win-x64>]
+node scripts/windows/package-codex-runtime-windows.mjs verify
+npm run windows:dev:build
+npm run windows:beta:build
+```
 
-Host 使用包内 `node.exe` 和 ACP JavaScript 入口组成完整启动参数，独立探测本机官方 Codex CLI。资源目录、入口、平台、架构、文件哈希及许可证写入 Windows manifest 和 lock。资源放入 `work/`，构建时映射到 Tauri 的 `agents/codex/`。
+The Tauri bundle maps staged resources into `agents/codex`. Installed builds resolve runtime relative to the production EXE and also accept the Dev staging path `resources/agents/codex`; this preserves the candidate-10 installer fix. The AppContainer `LocalCache\\Roaming` alias and physical-parent containment fixes remain required. Unsupported UNC, network mapped drives, and untrusted reparse paths stay explicitly rejected.
 
-官方 Codex CLI、登录和工作区运行范围由 Windows 本机配置。真实 Codex 模型验证继续保持用户后置状态，另有明确要求时登记实际验证结果。
+## Checks and acceptance
 
-## 构建和验收
+Every candidate report separates compilation, fixtures, ACP protocol handshake, native window/UI, installation, and real provider calls. The Windows CI job prepares the pinned runtime, runs version checks, frontend builds, runtime fixtures, and Rust MSVC tests. macOS CI prepares pinned source archives into an ephemeral runtime for arm64 native compilation and tests; that generated lock is compile evidence and does not replace a macOS release lock or installer acceptance. A successful fixture or MCP stdio check is not a real model call.
 
-Windows 构建脚本、运行时清单和候选记录必须使用实际目标架构及 Windows 文件规则。共享 `package-lock.json` 和 `src-tauri/Cargo.lock` 通过各平台包管理器安装，平台依赖保留在同一份锁文件中。
+The 0.0.6 report is [docs/ACCEPTANCE-0.0.6-WINDOWS.md](../ACCEPTANCE-0.0.6-WINDOWS.md). Existing 0.0.5 evidence is historical context only; run the checks again for the 0.0.6 candidate. At minimum record Dev/Beta identity and data directories, production startup without a dev server, proposal/approval/revision/permission behavior, ACP handshake and cancellation, workspace switching and restart recovery, clear missing CLI/login/adapter errors, NSIS install/reinstall, paths with spaces and Chinese characters, moved runtime directories, AppContainer aliases, and production EXE MCP stdio.
 
-验收记录分别包含：共享前端编译、Rust 编译、安装目录启动、真实 ACP 握手、取消回收、工作区切换、审批、重启恢复、EXE 安装与重新安装。真实 Agent 项目逐个登记；尚未执行的项目标注 `NOT_TESTED`。
+Provider status for this release remains explicit:
 
-GitHub 上的 `Frontend / windows-2022` 检查覆盖版本与前端编译。Windows 原生安装包及相关验收证据由本节的原生流程提供。
+- Hermes: `SKIPPED_BY_USER` (not installed locally).
+- Claude: `NOT_TESTED` (the user has not logged in).
+- Codex: `NOT_TESTED` for real model calls; use the user's official Windows login only if they later authorize that acceptance.
+
+Unsigned development artifacts and unsupported hardware/storage paths must remain labelled in the release notes. Do not commit `node_modules`, `target`, runtime binaries, credentials, user workspaces, or unsanitized logs.

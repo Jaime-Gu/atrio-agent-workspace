@@ -95,13 +95,14 @@ const actions: WorkspaceAction[] = ${JSON.stringify(actions)};
   const host = ts.createCompilerHost(options);
   const readFile = host.readFile.bind(host);
   const fileExists = host.fileExists.bind(host);
+  const samePath = (left, right) => path.resolve(left) === path.resolve(right);
   host.readFile = (name) =>
-    name === fixturePath
+    samePath(name, fixturePath)
       ? fixture
-      : name === typesPath
+      : samePath(name, typesPath)
         ? source
         : readFile(name);
-  host.fileExists = (name) => name === fixturePath || fileExists(name);
+  host.fileExists = (name) => samePath(name, fixturePath) || fileExists(name);
   const program = ts.createProgram([fixturePath], options, host);
   const diagnostics = ts.getPreEmitDiagnostics(program);
   if (diagnostics.length) {

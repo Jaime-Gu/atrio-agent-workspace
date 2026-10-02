@@ -60,7 +60,7 @@ function fixture(t) {
   for (const f of runtimeFiles(root)) utimesSync(path.join(root, f.path), 0, 0);
   return { project, root };
 }
-test("candidate binds external runtime bytes and executable bits without archiving payload", (t) => {
+test("candidate binds external runtime bytes and executable bits without archiving payload", { skip: process.platform !== "darwin" }, (t) => {
   const f = fixture(t),
     frozen = freezeCandidate(f.project, {
       candidateId: "payload-test",
@@ -78,7 +78,7 @@ test("candidate binds external runtime bytes and executable bits without archivi
     /runtime payload changed/,
   );
 });
-test("runtime verifies exact manifest and rejects unlisted files, symlinks and changed modes", (t) => {
+test("runtime verifies exact manifest and rejects unlisted files, symlinks and changed modes", { skip: process.platform !== "darwin" }, (t) => {
   const f = fixture(t);
   verifyLockedCodexRuntime(f.project);
   writeFileSync(path.join(f.root, "extra-auth.json"), "synthetic-only");

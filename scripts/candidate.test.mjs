@@ -94,7 +94,12 @@ test("source changes and executable-mode changes cannot reuse a candidate", (t) 
   );
   f.put("src/main.ts", "export const value = 1;\n");
   chmodSync(path.join(f.root, "src/main.ts"), 0o755);
-  assert.throws(() => verifyCandidate(f.root, manifestPath), /source changed/);
+  if (process.platform === "win32") {
+    assert.equal(verifyCandidate(f.root, manifestPath).platform, "win32");
+    assert.ok(sourceFiles(f.root).every(file => file.executable === false));
+  } else {
+    assert.throws(() => verifyCandidate(f.root, manifestPath), /source changed/);
+  }
 });
 
 test("new files, source symlinks and archive corruption are rejected", (t) => {
@@ -103,7 +108,7 @@ test("new files, source symlinks and archive corruption are rejected", (t) => {
   f.put("src/new.ts", "new dependency");
   assert.throws(() => verifyCandidate(f.root, manifestPath), /src\/new.ts/);
   rmSync(path.join(f.root, "src/new.ts"));
-  symlinkSync("main.ts", path.join(f.root, "src/alias.ts"));
+  symlinkSync(process.platform === "win32" ? path.join(f.root, "src") : "main.ts", path.join(f.root, "src/alias.ts"), process.platform === "win32" ? "junction" : undefined);
   assert.throws(() => verifyCandidate(f.root, manifestPath), /Source symlink/);
   rmSync(path.join(f.root, "src/alias.ts"));
   writeFileSync(

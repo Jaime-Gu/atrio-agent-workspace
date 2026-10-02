@@ -2,6 +2,8 @@
 
 此工具只记录来源与构建事实，不把自动测试、Web 或原生验收自动标为通过。固定 Handoff 仍是当前实施状态的唯一入口。
 
+Windows 0.0.6 使用候选 `0.0.6-win-x64-01`（Windows x64/MSVC）；其 ACP/Node 清单位于 `scripts/runtime/codex-runtime.windows-x64.lock.json`，由 `scripts/windows/package-codex-runtime-windows.mjs` 以 Windows 实际文件生成。该编号不能覆盖历史 `0.0.5-win-x64-*` 候选；最终合并提交后若源码或归档改变，必须重新冻结新编号。
+
 日常 1421 使用 `npm run dev`，未冻结构建在设置页显示“未冻结 · 日常开发”。待本次改动和自动回归收拢后，在源码根目录执行：
 
 ```sh

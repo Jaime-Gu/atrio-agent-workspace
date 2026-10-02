@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "derivedFrom": "0.0.5-atrio-02",
+  "historicalSource": {
+    "platform": "darwin",
+    "architecture": "arm64",
+    "sourceArchiveSha256": "b19b6fd89de9c7bdb9bb5c0f1a16110d2e7ebed4c699cdea11a7946006708aab"
+  },
+  "importedWindowsCandidate": "0.0.5-win-x64-codex-10",
+  "sharedBaselineCommit": "401ad96175561a097eb485521bc1416d4f5a2f1c",
+  "receivingBaselineCommit": "793c12551349452a8ff3a1a18cefbf56640fc3d0",
+  "platform": "windows",
+  "architecture": "x64",
+  "target": "x86_64-pc-windows-msvc",
+  "version": "0.0.6",
+  "finalReleaseCommit": "Recorded in the final immutable candidate/build manifest after main merge",
+  "providerAcceptance": {
+    "hermes": "SKIPPED_BY_USER",
+    "claude": "NOT_TESTED",
+    "codex": "NOT_TESTED"
+  }
+}
