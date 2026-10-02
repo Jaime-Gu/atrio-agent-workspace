@@ -40,7 +40,7 @@ git diff --check
 
 这些命令安装锁定依赖、检查版本，并编译 Dev/Beta 前端。原生功能、安装、真实 Agent、进程回收和恢复检查按照平台文档记录。当前 0.0.6 页面简介化使用 Dev → Beta 验收规则。
 
-CI 自动在 macOS 与 Windows 执行共享前端编译。原生实现、安装包与人工验收状态在 Pull Request 中单独记录，未执行项填写 `NOT_TESTED`。
+CI 自动在 macOS 与 Windows 执行共享前端测试/编译及对应原生编译和 fixture；依赖资源先按锁定来源与哈希准备。原生界面、安装包与人工验收状态在 Pull Request 中单独记录，未执行项填写 `NOT_TESTED`。
 
 ## 候选与产物
 

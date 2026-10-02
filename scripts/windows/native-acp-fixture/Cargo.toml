@@ -1,0 +1,13 @@
+[package]
+name = "atrio-windows-native-acp-fixture"
+version = "0.0.6"
+edition = "2021"
+rust-version = "1.85"
+publish = false
+
+[[bin]]
+name = "windows-acp-fixture"
+path = "src/main.rs"
+
+[dependencies]
+serde_json = "=1.0.151"

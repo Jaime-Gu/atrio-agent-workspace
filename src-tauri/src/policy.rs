@@ -249,10 +249,8 @@ impl PolicyStore {
             file.write_all(&serde_json::to_vec_pretty(&data).map_err(|e| e.to_string())?)
                 .map_err(|e| e.to_string())?;
             file.sync_all().map_err(|e| e.to_string())?;
-            fs::rename(&temp, &self.path).map_err(|e| e.to_string())?;
-            fs::File::open(parent)
-                .and_then(|f| f.sync_all())
-                .map_err(|e| e.to_string())?;
+            drop(file);
+            crate::platform::commit_replace(&temp, &self.path).map_err(|e| e.to_string())?;
             Ok(())
         })();
         if result.is_err() {
@@ -293,8 +291,16 @@ fn workspace_key(root: &Path, id: &str) -> Result<String, String> {
             id
         )
     };
-    #[cfg(not(unix))]
-    let identity = format!("{}\0{}", root.display(), id);
+    #[cfg(windows)]
+    let identity = format!(
+        "{}\0{}\0{}",
+        root.display(),
+        crate::platform::windows::paths::directory_identity(&root)?,
+        id
+    );
+    #[cfg(not(any(unix, windows)))]
+    return Err("当前平台尚未实现工作区物理身份；已阻止 Agent 运行".into());
+    #[cfg(any(unix, windows))]
     Ok(format!("sha256:{:x}", Sha256::digest(identity.as_bytes())))
 }
 
@@ -405,6 +411,24 @@ mod tests {
         assert_eq!(copy.local, WorkspacePolicy::Ask);
         assert!(!copy.workspace_trusted);
     }
+    #[test]
+    fn replaced_directory_at_same_path_does_not_inherit_authorization() {
+        let f = Fixture::new();
+        let root = f.0.join("workspace");
+        fs::create_dir(&root).unwrap();
+        let id = uuid::Uuid::new_v4().to_string();
+        let mut store = PolicyStore::open(&f.0.join("policy.json")).unwrap();
+        store.workspace(&root, &id, false).unwrap();
+        store
+            .set_workspace(&root, &id, WorkspacePolicy::Full)
+            .unwrap();
+        fs::rename(&root, f.0.join("previous")).unwrap();
+        fs::create_dir(&root).unwrap();
+        let replacement = store.workspace(&root, &id, false).unwrap();
+        assert_eq!(replacement.local, WorkspacePolicy::Ask);
+        assert!(!replacement.workspace_trusted);
+    }
+
     #[test]
     fn restrictive_legacy_and_channel_settings_are_preserved() {
         let f = Fixture::new();

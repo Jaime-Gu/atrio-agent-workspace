@@ -311,6 +311,66 @@ describe("policy and Hermes interface", () => {
   });
 });
 
+describe("current connection summary and historical diagnostics", () => {
+  it.each([
+    ["disconnected", "未连接"],
+    ["connecting", "连接中"],
+    ["stopping", "停止中"],
+    ["error", "未连接"],
+    ["connected", "已连接"],
+  ] as const)(
+    "shows %s from current Host status even after a successful session check",
+    async (status, label) => {
+      snapshot.connection = {
+        provider: "hermes",
+        status,
+        message: "Latest Host lifecycle state",
+        providerSessionId: "previous-provider-session",
+        capabilities: {},
+        hermesVersion: "fixture-version",
+        probe: {
+          provider: "hermes",
+          hostExecutable: "/synthetic/fixture",
+          hostVersion: "fixture-version",
+          executable: "/synthetic/fixture",
+          version: "fixture-version",
+          hostAvailable: true,
+          adapterAvailable: true,
+          acpAvailable: true,
+          authenticationStatus: "not_checked",
+          handshakeStatus: "passed",
+          sessionStatus: "passed",
+          restrictedSupported: false,
+          detail: "Historical probe evidence",
+        },
+      };
+      await render(settings());
+      const summary = container.querySelector(".connection-summary")!;
+      expect(summary.textContent).toContain(`会话：${label}`);
+      if (status !== "connected")
+        expect(summary.textContent).not.toContain("会话：已连接");
+      const diagnostics = container.querySelector(".connection-diagnostics")!;
+      expect(diagnostics.textContent).toContain(
+        status === "connected"
+          ? "会话：previous-provider-session"
+          : "上次会话：previous-provider-session",
+      );
+      expect(diagnostics.textContent).toContain("上次检查结果 · 握手：passed");
+      expect(diagnostics.textContent).toContain("Historical probe evidence");
+      expect(snapshot.connection.probe!.sessionStatus).toBe("passed");
+      expect(dispatch).not.toHaveBeenCalled();
+    },
+  );
+  it("does not claim a command was found before any probe", async () => {
+    await render(settings());
+    expect(
+      container.querySelector(".connection-summary")?.textContent,
+    ).toContain("会话：待检查");
+    expect(container.textContent).not.toContain("已找到命令");
+    expect(container.textContent).toContain("探测后显示命令检查结果");
+  });
+});
+
 describe("shared provider configuration and typed review", () => {
   it.each([
     ["claude_code", "Claude Code", "claude-agent-acp"],

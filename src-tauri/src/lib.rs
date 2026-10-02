@@ -3,6 +3,7 @@ mod identity;
 mod kernel;
 mod locks;
 mod mcp_bridge;
+mod platform;
 mod policy;
 mod workspace_tools;
 
@@ -71,7 +72,12 @@ fn save_workspace_root(config: &Path, root: &Path) -> Result<(), String> {
             .map_err(|e| format!("无法写入工作区设置：{e}"))?;
         file.sync_all()
             .map_err(|e| format!("无法同步工作区设置：{e}"))?;
-        fs::rename(&temp, config).map_err(|e| format!("无法更新工作区设置：{e}"))
+        drop(file);
+        #[cfg(windows)]
+        let replacement = platform::commit_replace(&temp, config);
+        #[cfg(not(windows))]
+        let replacement = fs::rename(&temp, config);
+        replacement.map_err(|e| format!("无法更新工作区设置：{e}"))
     })();
     if result.is_err() {
         let _ = fs::remove_file(&temp);

@@ -2263,6 +2263,7 @@ dependencies = [
  "tauri-plugin-dialog",
  "toml 0.8.2",
  "uuid",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
