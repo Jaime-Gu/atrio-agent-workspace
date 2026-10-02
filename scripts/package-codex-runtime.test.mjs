@@ -23,6 +23,7 @@ import {
   wrapper,
   apparentBytes,
   dmgSizeMiB,
+  bundledDependency,
 } from "./package-codex-runtime.mjs";
 import { freezeCandidate, verifyCandidate } from "./candidate-lib.mjs";
 const sha = (data) => createHash("sha256").update(data).digest("hex");
@@ -170,4 +171,58 @@ test("DMG sizing uses staging apparent bytes plus explicit headroom", (t) => {
     "explicit image capacity must exceed apparent staging bytes",
   );
   assert.throws(() => dmgSizeMiB(-1), /non-negative number/);
+});
+
+test("bundled nested dependency follows the npm installation and its exact locked source", (t) => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "atrio-hoisted-dependency-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const packages = path.join(root, "node_modules");
+  const lock = { packages: {} };
+  const install = (installedPath, name, version) => {
+    const directory = path.join(packages, installedPath);
+    mkdirSync(directory, { recursive: true });
+    writeFileSync(
+      path.join(directory, "package.json"),
+      JSON.stringify({ name, version }),
+    );
+    lock.packages[`node_modules/${installedPath}`] = {
+      version,
+      resolved: `https://registry.npmjs.org/${name}/-/${name}-${version}.tgz`,
+      integrity: `sha512-${Buffer.alloc(64, Number(version[0])).toString("base64")}`,
+    };
+    return directory;
+  };
+  const bundlePath = "wsl-utils/node_modules/powershell-utils";
+  const hoisted = install("powershell-utils", "powershell-utils", "0.2.1");
+  const found = bundledDependency(packages, lock, bundlePath);
+  assert.equal(found.directory, hoisted);
+  assert.equal(found.installedPath, "powershell-utils");
+  assert.deepEqual(
+    found.lockEntry,
+    lock.packages["node_modules/powershell-utils"],
+  );
+
+  // A real nested version must win over a hoisted copy and preserve its lock.
+  const nested = install(bundlePath, "powershell-utils", "0.2.0");
+  assert.equal(bundledDependency(packages, lock, bundlePath).directory, nested);
+  assert.equal(
+    bundledDependency(packages, lock, bundlePath).lockEntry.version,
+    "0.2.0",
+  );
+  lock.packages[`node_modules/${bundlePath}`].version = "0.2.1";
+  assert.throws(
+    () => bundledDependency(packages, lock, bundlePath),
+    /dependency drifted/,
+  );
+  lock.packages[`node_modules/${bundlePath}`].version = "0.2.0";
+  delete lock.packages[`node_modules/${bundlePath}`].integrity;
+  assert.throws(
+    () => bundledDependency(packages, lock, bundlePath),
+    /source integrity/,
+  );
+  delete lock.packages[`node_modules/${bundlePath}`];
+  assert.throws(
+    () => bundledDependency(packages, lock, bundlePath),
+    /exact npm lock/,
+  );
 });

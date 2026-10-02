@@ -156,6 +156,52 @@ function fileSource(source) {
     bytes: lstatSync(source).size,
   };
 }
+// esbuild comments retain the publisher's nested node_modules layout. npm ci
+// can hoist that same locked dependency, so resolve its actual installation
+// using nearest-parent package directories without discarding nested versions.
+export function bundledDependency(packages, lock, bundlePath) {
+  cleanRelative(bundlePath);
+  const ancestors = bundlePath.split("/node_modules/");
+  const packageName = ancestors.at(-1);
+  assert.ok(
+    ancestors.every((name) => /^(?:@[^/]+\/)?[^/]+$/.test(name)),
+    `Invalid bundled package path: ${bundlePath}`,
+  );
+  for (let depth = ancestors.length - 1; depth >= 0; depth--) {
+    const installedPath = [...ancestors.slice(0, depth), packageName].join(
+      "/node_modules/",
+    );
+    const directory = path.join(packages, installedPath);
+    if (!existsSync(path.join(directory, "package.json"))) continue;
+    const packageJson = json(path.join(directory, "package.json"));
+    const lockEntry = lock.packages?.[`node_modules/${installedPath}`];
+    assert.ok(lockEntry, `Missing exact npm lock for ${installedPath}`);
+    assert.equal(
+      packageJson.name,
+      packageName,
+      `Unexpected package at ${installedPath}`,
+    );
+    assert.equal(
+      packageJson.version,
+      lockEntry.version,
+      `Installed adapter dependency drifted: ${installedPath}; run npm ci`,
+    );
+    assert.ok(
+      typeof lockEntry.resolved === "string" &&
+        lockEntry.resolved.startsWith("https://registry.npmjs.org/"),
+      `Missing official npm source for ${installedPath}`,
+    );
+    assert.match(
+      lockEntry.integrity ?? "",
+      /^sha(?:256|384|512)-[A-Za-z0-9+/]+={0,2}$/,
+      `Missing npm source integrity for ${installedPath}`,
+    );
+    return { directory, packageJson, lockEntry, installedPath };
+  }
+  throw new Error(
+    `Bundled dependency is not installed: ${bundlePath}; run npm ci`,
+  );
+}
 function machO(file) {
   return /Mach-O/.test(
     execFileSync("/usr/bin/file", ["-b", file], { encoding: "utf8" }),
@@ -271,10 +317,13 @@ export function prepareRuntime(projectRoot, options) {
         ].map((m) => m[1]),
       ),
     ];
+    const npmLock = json(path.join(adapterRoot, "package-lock.json"));
+    const dependencies = new Map(
+      bundled.map((pkg) => [pkg, bundledDependency(packages, npmLock, pkg)]),
+    );
     const notices = [];
     for (const pkg of bundled) {
-      const dir = path.join(packages, pkg),
-        packageJson = json(path.join(dir, "package.json"));
+      const { directory: dir, packageJson } = dependencies.get(pkg);
       const licenses = readdirSync(dir).filter(
         (n) =>
           /^(license|copying|notice|thirdpartynotices)/i.test(n) &&
@@ -300,15 +349,14 @@ export function prepareRuntime(projectRoot, options) {
       });
     }
     putJson(path.join(staging, "LICENSES/third-party.json"), notices);
-    const npmLock = json(path.join(adapterRoot, "package-lock.json"));
     const sourcePackages = bundled;
     putJson(
       path.join(staging, "LICENSES/npm-sources.json"),
       sourcePackages.map((pkg) => {
-        const info = npmLock.packages[`node_modules/${pkg}`];
-        assert.ok(info, `Missing exact npm lock for ${pkg}`);
+        const { lockEntry: info, installedPath } = dependencies.get(pkg);
         return {
           packagePath: pkg,
+          installedPath,
           version: info.version,
           resolved: info.resolved,
           integrity: info.integrity,

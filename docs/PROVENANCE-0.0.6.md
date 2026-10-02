@@ -5,7 +5,7 @@ This record keeps platform provenance separate from the historical macOS source 
 | Field | Value |
 |---|---|
 | Product version | `0.0.6` |
-| Candidate | `0.0.6-win-x64-01` |
+| Candidate | `0.0.6-win-x64-02` |
 | Platform / architecture | Windows x64 / `x86_64-pc-windows-msvc` |
 | `derivedFrom` | `0.0.5-atrio-02` |
 | `importedWindowsCandidate` | `0.0.5-win-x64-codex-10` |

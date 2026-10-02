@@ -9,7 +9,7 @@ on:
       - "feature/**"
       - "chore/**"
   pull_request:
-    branches: [main]
+    branches: [main, windows/integration]
   workflow_dispatch:
 
 permissions:
@@ -78,9 +78,9 @@ jobs:
         shell: pwsh
         run: rustup target add x86_64-pc-windows-msvc
       - name: Compile and test Windows Host
-        run: cargo test --manifest-path src-tauri/Cargo.toml --target x86_64-pc-windows-msvc
+        run: cargo test --locked --manifest-path src-tauri/Cargo.toml --target x86_64-pc-windows-msvc -- --test-threads=4
       - name: Check Windows Host without running tests
-        run: cargo check --manifest-path src-tauri/Cargo.toml --target x86_64-pc-windows-msvc
+        run: cargo check --locked --manifest-path src-tauri/Cargo.toml --target x86_64-pc-windows-msvc
 
   macos-native:
     name: macOS native / arm64
@@ -115,5 +115,5 @@ jobs:
         run: |
           npm run candidate:test
           rustup target add aarch64-apple-darwin
-          cargo test --manifest-path src-tauri/Cargo.toml --target aarch64-apple-darwin
-          cargo check --manifest-path src-tauri/Cargo.toml --target aarch64-apple-darwin
+          cargo test --locked --manifest-path src-tauri/Cargo.toml --target aarch64-apple-darwin -- --test-threads=4
+          cargo check --locked --manifest-path src-tauri/Cargo.toml --target aarch64-apple-darwin

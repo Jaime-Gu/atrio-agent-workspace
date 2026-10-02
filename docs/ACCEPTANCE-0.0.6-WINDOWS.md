@@ -1,6 +1,6 @@
 # Windows 0.0.6 acceptance record
 
-Candidate: `0.0.6-win-x64-01`
+Candidate: `0.0.6-win-x64-02`
 
 Platform: Windows x64 / MSVC
 Status: `IN_PROGRESS`; this file is updated only with evidence from this candidate. Historical 0.0.5 logs are linked as context and do not satisfy a 0.0.6 check.
@@ -13,7 +13,7 @@ Status: `IN_PROGRESS`; this file is updated only with evidence from this candida
 | Version identity | `NOT_RUN` | `npm run version:check` |
 | Frontend tests | `NOT_RUN` | `npm test` |
 | Dev/Beta frontend builds | `NOT_RUN` | `npm run build:dev`, `npm run build:beta` |
-| Windows runtime lock fixtures | `PASS` | `npm run candidate:test`: 12 passed / 3 Darwin-only skips / 0 failures; runtime prepare + verify: 28 files, 88,685,465 bytes (including Node license), ACP 1.13.1, Node 22.23.3 (see provenance hashes). These are fixtures and payload verification, not native/model acceptance. |
+| Windows runtime lock fixtures | `PASS` | `npm run candidate:test`: 14 passed / 3 Darwin-only skips / 0 failures; runtime prepare + verify: 28 files, 88,685,465 bytes (including Node license), ACP 1.13.1, Node 22.23.3 (see provenance hashes). These are fixtures and payload verification, not native/model acceptance. |
 | Windows Rust MSVC | `NOT_RUN` | `cargo test --manifest-path src-tauri/Cargo.toml --target x86_64-pc-windows-msvc` |
 | macOS conditional compile | `NOT_RUN` | Run shared platform regression on macOS CI/host |
 | Diff hygiene | `NOT_RUN` | `git diff --check` |

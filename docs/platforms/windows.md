@@ -4,11 +4,11 @@ Windows 0.0.6 follows the shared 0.0.6 UI, DTO, revision, approval, permission, 
 
 ## Source and candidate identity
 
-- Candidate: `0.0.6-win-x64-01` (check the remote tags/releases before freezing; never rename a historical candidate).
+- Candidate: `0.0.6-win-x64-02` (check the remote tags/releases before freezing; never rename a historical candidate).
 - `derivedFrom`: `0.0.5-atrio-02`.
 - `importedWindowsCandidate`: `0.0.5-win-x64-codex-10`.
 - Shared baseline and final merge commit are recorded in `docs/PROVENANCE-0.0.6.md` after the integration PR is merged.
-- The source tree has no inherited Git history. Freeze records a source fingerprint, runtime lock/hash, target, toolchain, and build artifact hashes.
+- The imported local 0.0.5 source had no Git history; integration preserves this repository's shared history. Freeze records a source fingerprint, runtime lock/hash, target, toolchain, and build artifact hashes.
 
 ## Platform layout
 

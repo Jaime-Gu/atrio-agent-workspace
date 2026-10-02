@@ -292,7 +292,7 @@ export async function prepareRuntime(projectRoot, options = {}) {
 
   const nodeRoot = options.nodeRoot
     ? path.resolve(options.nodeRoot)
-    : await downloadNodeRuntime(options.nodeCacheRoot);
+    : await downloadNodeRuntime(options.nodeCacheRoot ?? path.join(projectRoot, "work/runtime-downloads/windows-node"));
   const node = path.join(nodeRoot, "node.exe");
   verifyWindowsX64Executable(node);
   assert.equal(nodeVersion(node), NODE_VERSION, "Use the pinned Node 22.23.3 runtime");
