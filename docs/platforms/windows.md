@@ -53,10 +53,12 @@ NSIS runtime 位于 EXE 相邻 `agents/codex`；resolver 同时兼容 Dev `resou
 
 | 完整 NSIS 安装包 | 字节数 | SHA-256 |
 |---|---:|---|
-| `Atrio-WorkSpace-0.0.6-dev-windows-x64.exe` | 25,980,376 | `77ca4c3f0678ac39c936553ba26d909967b139b703a8c809df86d4a5aa251225` |
-| `Atrio-WorkSpace-0.0.6-beta-windows-x64.exe` | 25,985,970 | `045c4201506bf4f957f938f88074df94e8272b93f82185f8329b9a1c56d401b7` |
+| [Atrio-WorkSpace-0.0.6-dev-windows-x64.exe](https://github.com/Jaime-Gu/atrio-agent-workspace/releases/download/0.0.6/Atrio-WorkSpace-0.0.6-dev-windows-x64.exe) | 25,980,376 | `77ca4c3f0678ac39c936553ba26d909967b139b703a8c809df86d4a5aa251225` |
+| [Atrio-WorkSpace-0.0.6-beta-windows-x64.exe](https://github.com/Jaime-Gu/atrio-agent-workspace/releases/download/0.0.6/Atrio-WorkSpace-0.0.6-beta-windows-x64.exe) | 25,985,970 | `045c4201506bf4f957f938f88074df94e8272b93f82185f8329b9a1c56d401b7` |
 
 [Windows 0.0.6 Release](https://github.com/Jaime-Gu/atrio-agent-workspace/releases/tag/0.0.6) 已发布，标记为 Pre-release；发布时间 2026-10-03 01:43:19（Asia/Shanghai）。仓库为 PRIVATE，下载 Release 附件需要具备该仓库的 GitHub 访问权限。
+
+发布后已通过有仓库权限的 GitHub 会话重新下载全部 12 个附件，逐文件 SHA-256 与已验收 staging 产物一致；`SHA256SUMS` 的 11 个条目及清单自身哈希均通过核对。两份安装器 SHA-256 保持上述固定值。独立复核证据为 `work/evidence/release-download-verification.json` 与 `release-download-verified-root.json`；未声明匿名下载可用。
 
 关闭正在运行的同渠道应用并备份工作区后，运行对应 NSIS；Dev 使用 `dev.pixel.workspace.dev`，Beta 使用 `dev.pixel.workspace`，数据目录分离。升级保留工作区与本机权限设置，官方 CLI 与认证由用户自行维护。安装包包含完整 runtime，无需开发服务器；移动运行目录时应移动完整目录。
 

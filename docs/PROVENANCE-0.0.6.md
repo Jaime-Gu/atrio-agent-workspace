@@ -37,6 +37,8 @@
 
 [Windows 0.0.6 Release](https://github.com/Jaime-Gu/atrio-agent-workspace/releases/tag/0.0.6) 已发布，标记为 Pre-release；发布时间 2026-10-03 01:43:19（Asia/Shanghai）。仓库为 PRIVATE，下载 Release 附件需要具备该仓库的 GitHub 访问权限。
 
+发布后已通过有仓库权限的 GitHub 会话重新下载全部 12 个附件，逐文件 SHA-256 与已验收 staging 产物一致；`SHA256SUMS` 的 11 个条目及清单自身哈希均通过核对。两份安装器 SHA-256 保持上述固定值。独立复核证据为 `work/evidence/release-download-verification.json` 与 `release-download-verified-root.json`；未声明匿名下载可用。
+
 Release 的 candidate/build JSON 附件为去除本机绝对路径等信息的发布投影，不是原冻结文件的逐字节副本；下载投影应按 Release `SHA256SUMS` 校验。发布 metadata 的 `originalFrozenManifestSha256` 对应上述本机原清单 `3ced13ddeeda81957526ccb09a107437632241ee8e517baa2adab2ae8d971d8c`，不能当作下载投影的 SHA-256。源码归档未改写，archive SHA-256 仍为 `e90729d776580b34f50a53e4da04b118f0c2814d0c862b6eecfb128f01efbee3`。
 
 最终冻结文件位于 `work/candidates.noindex/0.0.6-win-x64-03/`；Dev/Beta build.json 和完整 NSIS 位于对应 `work/builds/`。本机最终验收证据为 `work/evidence/final-03-*` 与 `work/evidence/native-final-03/summary.json`。最终包内版本、候选、buildId 与源码指纹已通过原生 app_info/内嵌身份核实。二进制、个人认证、用户工作区和未脱敏原始日志不提交源码仓库。

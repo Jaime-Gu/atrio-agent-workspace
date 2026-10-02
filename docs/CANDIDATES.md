@@ -6,6 +6,8 @@ Windows 0.0.6 的最终发布候选为 `0.0.6-win-x64-03`（Windows x64/MSVC）�
 
 [Windows 0.0.6 Release](https://github.com/Jaime-Gu/atrio-agent-workspace/releases/tag/0.0.6) 已发布，标记为 Pre-release；发布时间 2026-10-03 01:43:19（Asia/Shanghai）。仓库为 PRIVATE，下载 Release 附件需要具备该仓库的 GitHub 访问权限。
 
+发布后已通过有仓库权限的 GitHub 会话重新下载全部 12 个附件，逐文件 SHA-256 与已验收 staging 产物一致；`SHA256SUMS` 的 11 个条目及清单自身哈希均通过核对。两份安装器 SHA-256 保持上述固定值。独立复核证据为 `work/evidence/release-download-verification.json` 与 `release-download-verified-root.json`；未声明匿名下载可用。
+
 Release candidate/build JSON 是脱敏发布投影；其下载 SHA-256 以 `SHA256SUMS` 为准。metadata 单独登记 `originalFrozenManifestSha256`，保留与本机原冻结清单的关联；原 source.tar.gz 不改写。
 
 03 的 Dev/Beta buildId 分别为 `0.0.6-win-x64-03-dev-20261002T162208955Z-fc8362`、`0.0.6-win-x64-03-beta-20261002T162535109Z-f831e2`。完整 NSIS SHA-256 分别为 `77ca4c3f0678ac39c936553ba26d909967b139b703a8c809df86d4a5aa251225`、`045c4201506bf4f957f938f88074df94e8272b93f82185f8329b9a1c56d401b7`；这些固定身份由最终 candidate/build/Release 清单记录。候选 01/02 和历史 0.0.5 不覆盖、不重命名。发布后的状态文档提交不用于生成新安装包，也不改变既有 tag 或 03 来源；今后如从更新后的源码重新构建，仍须创建新候选并重新验收。

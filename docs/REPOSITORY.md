@@ -31,6 +31,8 @@ npm manifest/lock 位于仓库根目录；Cargo manifest/lock 位于 `src-tauri/
 
 最终 03 复验与早期 02 的全面原生覆盖分开登记：03 覆盖安装与资源、生产 MCP stdio、打包前端、渠道/内嵌身份、恢复、取消/退出进程回收、当前 session 摘要与隔离旧工作区副本。02 的审批、revision、权限、ACP 两轮、切换、重装、移动目录和错误诊断是沿用证据，不冒充 03 的逐项重跑。Hermes `SKIPPED_BY_USER`，Claude/Codex 真实认证与模型调用 `NOT_TESTED`。
 
-成果已按任务分支 → `windows/integration` → main 的 PR 流程合并，未改写历史。发布源码、候选 03 与安装包身份固定，发布后文档更新只登记事实。[Windows 0.0.6 Release](https://github.com/Jaime-Gu/atrio-agent-workspace/releases/tag/0.0.6) 已发布，标记为 Pre-release；发布时间 2026-10-03 01:43:19（Asia/Shanghai）。仓库为 PRIVATE，下载 Release 附件需要具备该仓库的 GitHub 访问权限。 附件按 `Atrio-WorkSpace-<版本>-<渠道>-<平台>-<架构>.<扩展名>` 命名，Dev/Beta NSIS 字节数与 SHA-256 见 [来源记录](PROVENANCE-0.0.6.md)。
+成果已按任务分支 → `windows/integration` → main 的 PR 流程合并，未改写历史。发布源码、候选 03 与安装包身份固定，发布后文档更新只登记事实。[Windows 0.0.6 Release](https://github.com/Jaime-Gu/atrio-agent-workspace/releases/tag/0.0.6) 已发布，标记为 Pre-release；发布时间 2026-10-03 01:43:19（Asia/Shanghai）。仓库为 PRIVATE，下载 Release 附件需要具备该仓库的 GitHub 访问权限。
+
+发布后已通过有仓库权限的 GitHub 会话重新下载全部 12 个附件，逐文件 SHA-256 与已验收 staging 产物一致；`SHA256SUMS` 的 11 个条目及清单自身哈希均通过核对。两份安装器 SHA-256 保持上述固定值。独立复核证据为 `work/evidence/release-download-verification.json` 与 `release-download-verified-root.json`；未声明匿名下载可用。 附件按 `Atrio-WorkSpace-<版本>-<渠道>-<平台>-<架构>.<扩展名>` 命名，Dev/Beta NSIS 字节数与 SHA-256 见 [来源记录](PROVENANCE-0.0.6.md)。
 
 分支与独立工作树规则见 [CONTRIBUTING.md](../CONTRIBUTING.md)；详细来源见 [来源记录](PROVENANCE-0.0.6.md)。

@@ -4,6 +4,8 @@
 
 [Windows 0.0.6 Release](https://github.com/Jaime-Gu/atrio-agent-workspace/releases/tag/0.0.6) 已发布，标记为 Pre-release；发布时间 2026-10-03 01:43:19（Asia/Shanghai）。仓库为 PRIVATE，下载 Release 附件需要具备该仓库的 GitHub 访问权限。
 
+发布后已通过有仓库权限的 GitHub 会话重新下载全部 12 个附件，逐文件 SHA-256 与已验收 staging 产物一致；`SHA256SUMS` 的 11 个条目及清单自身哈希均通过核对。两份安装器 SHA-256 保持上述固定值。独立复核证据为 `work/evidence/release-download-verification.json` 与 `release-download-verified-root.json`；未声明匿名下载可用。
+
 实机系统：Windows 11 Home 中文版 `10.0.26200` / build `26200`，x64。其他 Windows 版本未实机验收，ARM64 不属于本次发布目标。NSIS `currentUser` 安装；缺少 WebView2 时，silent downloadBootstrapper 需要网络。
 
 本记录明确区分早期候选 02 的全面原生覆盖与最终候选 03 的实际复验子集。02 的结果是对应实现的沿用证据，不冒称在 03 上全部重跑；安装、fixture、协议握手、原生界面及真实模型验收仍分别登记。历史 0.0.5 报告仅作来源说明。
@@ -42,8 +44,8 @@ macOS 初次 CI 的 `a_briefly_inherited_process_lock_is_retried_before_reportin
 
 | 完整安装包 | 字节数 | SHA-256 |
 |---|---:|---|
-| `Atrio-WorkSpace-0.0.6-dev-windows-x64.exe` | 25,980,376 | `77ca4c3f0678ac39c936553ba26d909967b139b703a8c809df86d4a5aa251225` |
-| `Atrio-WorkSpace-0.0.6-beta-windows-x64.exe` | 25,985,970 | `045c4201506bf4f957f938f88074df94e8272b93f82185f8329b9a1c56d401b7` |
+| [Atrio-WorkSpace-0.0.6-dev-windows-x64.exe](https://github.com/Jaime-Gu/atrio-agent-workspace/releases/download/0.0.6/Atrio-WorkSpace-0.0.6-dev-windows-x64.exe) | 25,980,376 | `77ca4c3f0678ac39c936553ba26d909967b139b703a8c809df86d4a5aa251225` |
+| [Atrio-WorkSpace-0.0.6-beta-windows-x64.exe](https://github.com/Jaime-Gu/atrio-agent-workspace/releases/download/0.0.6/Atrio-WorkSpace-0.0.6-beta-windows-x64.exe) | 25,985,970 | `045c4201506bf4f957f938f88074df94e8272b93f82185f8329b9a1c56d401b7` |
 
 ## 早期候选 02 自动检查（沿用证据）
 
