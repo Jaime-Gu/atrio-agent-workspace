@@ -4,7 +4,7 @@
 
 共享版本为 `0.0.6`。本次 Windows 从 `0.0.5-win-x64-codex-10` 逐文件导入，历史来源 `0.0.5-atrio-02` 与原始 `darwin/arm64` provenance 保留。接收基线为 main `401ad96175561a097eb485521bc1416d4f5a2f1c`、windows/integration `793c12551349452a8ff3a1a18cefbf56640fc3d0`。
 
-当前预发布验收候选 `0.0.6-win-x64-02` 来自提交 `3143c49dfbec91c37b1110722cdacc6104c22885`。[PR #2](https://github.com/Jaime-Gu/atrio-agent-workspace/pull/2) 为整合草稿，base 为 `windows/integration`。历史 `0.0.5-atrio-12` 标签继续指向 `7b6fc1817bb5c9afabbc80f3c674effd78a5d443`。
+Windows 发布候选 `0.0.6-win-x64-03` 来自 main 发布源码提交 `53e45575bfd6f0d8de7f1c1e5ada64862dfc859c`，源码指纹 `sha256:e90729d776580b34f50a53e4da04b118f0c2814d0c862b6eecfb128f01efbee3`。[#2](https://github.com/Jaime-Gu/atrio-agent-workspace/pull/2) 已整合到 `windows/integration`，[#3](https://github.com/Jaime-Gu/atrio-agent-workspace/pull/3) 已合并 main。历史 `0.0.5-atrio-12` 标签继续指向 `7b6fc1817bb5c9afabbc80f3c674effd78a5d443`。
 
 ## 目录职责
 
@@ -27,10 +27,10 @@ npm manifest/lock 位于仓库根目录；Cargo manifest/lock 位于 `src-tauri/
 
 ## 验收与发布
 
-候选 02 的自动检查、Dev/Beta NSIS 安装和当前原生验收见 [Windows 验收记录](ACCEPTANCE-0.0.6-WINDOWS.md)。[CI 37004579179](https://github.com/Jaime-Gu/atrio-agent-workspace/actions/runs/37004579179) 四项全部 SUCCESS：macOS/Windows 前端各 82 项，Windows MSVC 120 项与 macOS arm64 103 项原生测试及编译通过。macOS CI 的临时 runtime 只作为编译回归，不作为发布包验收。
+最终候选 03 的自动检查、Dev/Beta 完整 NSIS 安装与关键原生复验见 [Windows 验收记录](ACCEPTANCE-0.0.6-WINDOWS.md)。[CI 37032940358](https://github.com/Jaime-Gu/atrio-agent-workspace/actions/runs/37032940358) 在发布源码提交上四项 SUCCESS：前端 88 项、Windows MSVC 120 项与 macOS arm64 103 项原生测试及编译。macOS 首次目录锁时序失败后在同一提交重跑通过，首次失败日志保留。临时 macOS runtime 仅用于编译/fixture 回归，不是 Mac 安装包验收。
 
-安装、原生 UI、协议 fixture 与真实模型调用分项记录。Synthetic ACP 原生两轮、取消/切换回收、旧工作区备份副本、移动运行目录及缺 adapter/CLI 明确错误均已验证；实际 Codex 只执行 initialize-only 握手，未执行真实 session/prompt。Hermes 跳过，Claude/Codex 真实认证和模型调用为 `NOT_TESTED_BY_USER_SCOPE`。历史报告不能当作新候选通过证据。
+最终 03 复验与早期 02 的全面原生覆盖分开登记：03 覆盖安装与资源、生产 MCP stdio、打包前端、渠道/内嵌身份、恢复、取消/退出进程回收、当前 session 摘要与隔离旧工作区副本。02 的审批、revision、权限、ACP 两轮、切换、重装、移动目录和错误诊断是沿用证据，不冒充 03 的逐项重跑。Hermes `SKIPPED_BY_USER`，Claude/Codex 真实认证与模型调用 `NOT_TESTED`。
 
-成果先整合到 `windows/integration`，再通过 PR 合并 main，遵守分支保护与审批。最终 main 提交重新冻结和构建，最终不可变 Release manifest 记录提交、候选、源码/runtime/安装器哈希与未测项目，不预填未知 Release。附件按 `Atrio-WorkSpace-<版本>-<渠道>-<平台>-<架构>.<扩展名>` 命名；不移动旧 tag、不覆盖 Mac 附件，发布后下载核对 SHA-256。
+成果已按任务分支 → `windows/integration` → main 的 PR 流程合并，未改写历史。发布源码、候选 03 与安装包身份固定，发布后文档更新只登记事实。[Windows 0.0.6 Release](https://github.com/Jaime-Gu/atrio-agent-workspace/releases/tag/0.0.6) 已发布，标记为 Pre-release；发布时间 2026-10-03 01:43:19（Asia/Shanghai）。仓库为 PRIVATE，下载 Release 附件需要具备该仓库的 GitHub 访问权限。 附件按 `Atrio-WorkSpace-<版本>-<渠道>-<平台>-<架构>.<扩展名>` 命名，Dev/Beta NSIS 字节数与 SHA-256 见 [来源记录](PROVENANCE-0.0.6.md)。
 
 分支与独立工作树规则见 [CONTRIBUTING.md](../CONTRIBUTING.md)；详细来源见 [来源记录](PROVENANCE-0.0.6.md)。

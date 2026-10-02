@@ -2,7 +2,13 @@
 
 此工具只记录来源与构建事实，不把自动测试、Web 或原生验收自动标为通过。固定 Handoff 仍是当前实施状态的唯一入口。
 
-Windows 0.0.6 使用候选 `0.0.6-win-x64-02`（Windows x64/MSVC）；其 ACP/Node 清单位于 `scripts/runtime/codex-runtime.windows-x64.lock.json`，由 `scripts/windows/package-codex-runtime-windows.mjs` 以 Windows 实际文件生成。该编号不能覆盖历史 `0.0.5-win-x64-*` 候选；最终合并提交后若源码或归档改变，必须重新冻结新编号。
+Windows 0.0.6 的最终发布候选为 `0.0.6-win-x64-03`（Windows x64/MSVC），从 main `53e45575bfd6f0d8de7f1c1e5ada64862dfc859c` clean 冻结；源码指纹 `sha256:e90729d776580b34f50a53e4da04b118f0c2814d0c862b6eecfb128f01efbee3`。候选 02 的完整原生证据和最终 03 的复验子集分别登记，见 [验收记录](ACCEPTANCE-0.0.6-WINDOWS.md)。ACP/Node 清单为 `scripts/runtime/codex-runtime.windows-x64.lock.json`，由 Windows 实际文件生成。
+
+[Windows 0.0.6 Release](https://github.com/Jaime-Gu/atrio-agent-workspace/releases/tag/0.0.6) 已发布，标记为 Pre-release；发布时间 2026-10-03 01:43:19（Asia/Shanghai）。仓库为 PRIVATE，下载 Release 附件需要具备该仓库的 GitHub 访问权限。
+
+Release candidate/build JSON 是脱敏发布投影；其下载 SHA-256 以 `SHA256SUMS` 为准。metadata 单独登记 `originalFrozenManifestSha256`，保留与本机原冻结清单的关联；原 source.tar.gz 不改写。
+
+03 的 Dev/Beta buildId 分别为 `0.0.6-win-x64-03-dev-20261002T162208955Z-fc8362`、`0.0.6-win-x64-03-beta-20261002T162535109Z-f831e2`。完整 NSIS SHA-256 分别为 `77ca4c3f0678ac39c936553ba26d909967b139b703a8c809df86d4a5aa251225`、`045c4201506bf4f957f938f88074df94e8272b93f82185f8329b9a1c56d401b7`；这些固定身份由最终 candidate/build/Release 清单记录。候选 01/02 和历史 0.0.5 不覆盖、不重命名。发布后的状态文档提交不用于生成新安装包，也不改变既有 tag 或 03 来源；今后如从更新后的源码重新构建，仍须创建新候选并重新验收。
 
 日常 1421 使用 `npm run dev`，未冻结构建在设置页显示“未冻结 · 日常开发”。待本次改动和自动回归收拢后，在源码根目录执行：
 
