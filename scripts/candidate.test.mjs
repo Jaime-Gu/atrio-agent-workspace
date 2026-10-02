@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import {
   mkdtempSync,
   mkdirSync,
@@ -94,7 +95,12 @@ test("source changes and executable-mode changes cannot reuse a candidate", (t) 
   );
   f.put("src/main.ts", "export const value = 1;\n");
   chmodSync(path.join(f.root, "src/main.ts"), 0o755);
-  assert.throws(() => verifyCandidate(f.root, manifestPath), /source changed/);
+  if (process.platform === "win32") {
+    assert.equal(verifyCandidate(f.root, manifestPath).platform, "win32");
+    assert.ok(sourceFiles(f.root).every(file => file.executable === false));
+  } else {
+    assert.throws(() => verifyCandidate(f.root, manifestPath), /source changed/);
+  }
 });
 
 test("new files, source symlinks and archive corruption are rejected", (t) => {
@@ -103,7 +109,7 @@ test("new files, source symlinks and archive corruption are rejected", (t) => {
   f.put("src/new.ts", "new dependency");
   assert.throws(() => verifyCandidate(f.root, manifestPath), /src\/new.ts/);
   rmSync(path.join(f.root, "src/new.ts"));
-  symlinkSync("main.ts", path.join(f.root, "src/alias.ts"));
+  symlinkSync(process.platform === "win32" ? path.join(f.root, "src") : "main.ts", path.join(f.root, "src/alias.ts"), process.platform === "win32" ? "junction" : undefined);
   assert.throws(() => verifyCandidate(f.root, manifestPath), /Source symlink/);
   rmSync(path.join(f.root, "src/alias.ts"));
   writeFileSync(
@@ -211,4 +217,41 @@ test("changed installed dependency metadata requires a new candidate", (t) => {
     () => verifyCandidate(f.root, manifestPath),
     /dependency version drift/,
   );
+});
+
+test("Windows candidate separates source identities and preserves the actual frozen Git commit", { skip: process.platform !== "win32" }, (t) => {
+  const f = fixture(t);
+  const provenance = {
+    schemaVersion: 1,
+    derivedFrom: "0.0.5-atrio-02",
+    importedWindowsCandidate: "0.0.5-win-x64-codex-10",
+    sharedBaselineCommit: "401ad96175561a097eb485521bc1416d4f5a2f1c",
+    receivingBaselineCommit: "793c12551349452a8ff3a1a18cefbf56640fc3d0",
+    historicalSource: { platform: "darwin", architecture: "arm64" },
+    finalReleaseCommit: "Recorded in the final immutable candidate/build manifest after main merge",
+  };
+  f.put("windows-provenance.json", JSON.stringify(provenance));
+  execFileSync("git", ["-C", f.root, "init", "-q"]);
+  execFileSync("git", ["-C", f.root, "add", "."]);
+  execFileSync("git", ["-C", f.root, "-c", "user.name=Candidate fixture", "-c", "user.email=candidate-fixture@example.test", "commit", "--no-gpg-sign", "-q", "-m", "candidate provenance fixture"]);
+  const actualCommit = execFileSync("git", ["-C", f.root, "rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+  const { manifest, manifestPath } = f.freeze();
+  for (const key of ["derivedFrom", "importedWindowsCandidate", "sharedBaselineCommit", "receivingBaselineCommit"])
+    assert.equal(manifest[key], provenance[key]);
+  assert.equal(typeof manifest.derivedFrom, "string");
+  assert.deepEqual(manifest.provenance, provenance);
+  assert.equal(manifest.provenance.historicalSource.platform, "darwin");
+  assert.equal(manifest.source.git.commit, actualCommit);
+  assert.notEqual(manifest.source.git.commit, manifest.sharedBaselineCommit);
+  assert.equal(Object.hasOwn(manifest, "finalReleaseCommit"), false);
+  verifyCandidate(f.root, manifestPath);
+
+  // A synthetic old-format manifest remains readable; real historical files
+  // are never rewritten by this migration.
+  const historical = { ...manifest, derivedFrom: provenance };
+  for (const key of ["provenance", "importedWindowsCandidate", "sharedBaselineCommit", "receivingBaselineCommit"])
+    delete historical[key];
+  writeJson(manifestPath, historical);
+  assert.deepEqual(verifyCandidate(f.root, manifestPath).derivedFrom, provenance);
+  assert.equal(verifyCandidate(f.root, manifestPath).source.git.commit, actualCommit);
 });

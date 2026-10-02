@@ -1,16 +1,19 @@
 //! Private local MCP transport. The child never opens a workspace DB or writes files.
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use std::io::{BufRead, BufReader, Read, Write};
+#[cfg(unix)]
+use std::io::BufReader;
+use std::io::{BufRead, Read, Write};
 use std::path::{Path, PathBuf};
 use std::sync::{
-    atomic::{AtomicBool, AtomicUsize, Ordering},
+    atomic::{AtomicBool, Ordering},
     Arc,
 };
-use std::time::Duration;
+#[cfg(unix)]
+use std::{sync::atomic::AtomicUsize, time::Duration};
 
-const MAX_MESSAGE: usize = 1_500_000;
-const MAX_CLIENTS: usize = 16;
+pub(crate) const MAX_MESSAGE: usize = 1_500_000;
+pub(crate) const MAX_CLIENTS: usize = 16;
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -24,19 +27,26 @@ pub struct ToolRequest {
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
-struct ToolResponse {
-    result: Option<Value>,
-    error: Option<String>,
+pub(crate) struct ToolResponse {
+    pub(crate) result: Option<Value>,
+    pub(crate) error: Option<String>,
 }
 
-/// No token or workspace identity is encoded in the socket filename.
+/// No token or workspace identity is encoded in the local endpoint name.
 pub struct ToolServer {
-    socket: PathBuf,
-    stop: Arc<AtomicBool>,
-    thread: Option<std::thread::JoinHandle<()>>,
+    pub(crate) socket: PathBuf,
+    pub(crate) stop: Arc<AtomicBool>,
+    pub(crate) thread: Option<std::thread::JoinHandle<()>>,
 }
 
 impl ToolServer {
+    #[cfg(windows)]
+    pub fn start(
+        handler: Arc<dyn Fn(ToolRequest) -> Result<Value, String> + Send + Sync>,
+    ) -> Result<Self, String> {
+        crate::platform::windows::ipc::start(handler)
+    }
+
     #[cfg(unix)]
     pub fn start(
         handler: Arc<dyn Fn(ToolRequest) -> Result<Value, String> + Send + Sync>,
@@ -140,11 +150,19 @@ impl Drop for ToolServer {
         if let Some(thread) = self.thread.take() {
             let _ = thread.join();
         }
-        let _ = std::fs::remove_file(&self.socket);
-        if let Some(dir) = self.socket.parent() {
-            let _ = std::fs::remove_dir(dir);
+        #[cfg(unix)]
+        {
+            let _ = std::fs::remove_file(&self.socket);
+            if let Some(dir) = self.socket.parent() {
+                let _ = std::fs::remove_dir(dir);
+            }
         }
     }
+}
+
+#[cfg(windows)]
+fn forward(socket: &Path, request: &ToolRequest) -> Result<Value, String> {
+    crate::platform::windows::ipc::forward(socket, request)
 }
 
 #[cfg(unix)]

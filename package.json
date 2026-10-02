@@ -17,12 +17,17 @@
     "desktop:dev": "bash scripts/dev-macos.sh",
     "desktop:dev:build": "bash scripts/build-macos.sh dev",
     "desktop:beta:build": "bash scripts/build-macos.sh beta",
+    "windows:dev": "node scripts/tauri.mjs dev",
+    "windows:dev:build": "node scripts/windows/build-windows.mjs dev",
+    "windows:beta:build": "node scripts/windows/build-windows.mjs beta",
+    "windows:runtime:verify": "node scripts/windows/package-codex-runtime-windows.mjs verify",
+    "windows:runtime:prepare": "node scripts/windows/package-codex-runtime-windows.mjs prepare",
     "version:check": "node scripts/check-version.mjs",
     "candidate:freeze": "node scripts/candidate.mjs freeze",
     "candidate:check": "node scripts/candidate.mjs check",
     "candidate:build": "node scripts/candidate.mjs build",
     "candidate:preview": "node scripts/candidate.mjs preview",
-    "candidate:test": "node --test scripts/candidate.test.mjs scripts/package-codex-runtime.test.mjs"
+    "candidate:test": "node --test scripts/candidate.test.mjs scripts/package-codex-runtime.test.mjs scripts/windows/package-codex-runtime-windows.test.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.8.0",

@@ -569,7 +569,9 @@ export default function App() {
             >
               <Search size={14} />
               <span>快速查找</span>
-              <kbd>⌘ K</kbd>
+              <kbd>
+                {/Mac|iPhone|iPad/.test(navigator.platform) ? "⌘ K" : "Ctrl K"}
+              </kbd>
             </button>
             <button
               className="settings-link"

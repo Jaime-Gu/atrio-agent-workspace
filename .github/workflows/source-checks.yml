@@ -9,7 +9,7 @@ on:
       - "feature/**"
       - "chore/**"
   pull_request:
-    branches: [main]
+    branches: [main, windows/integration]
   workflow_dispatch:
 
 permissions:
@@ -39,7 +39,81 @@ jobs:
         run: npm ci
       - name: Verify application versions
         run: npm run version:check
+      - name: Run shared frontend tests
+        run: npm test
       - name: Compile Dev frontend
         run: npm run build:dev
       - name: Compile Beta frontend
         run: npm run build:beta
+
+  windows-native:
+    name: Windows native / MSVC
+    runs-on: windows-2022
+    timeout-minutes: 30
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Set up Node 22
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22.23.3"
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Verify application versions and runtime fixtures
+        run: |
+          npm run version:check
+          npm run candidate:test
+      - name: Prepare and verify pinned Windows ACP runtime
+        run: |
+          npm run windows:runtime:prepare
+          npm run windows:runtime:verify
+      - name: Bind fixture Python to the actual runner executable
+        shell: pwsh
+        run: |
+          $fixturePython = (Get-Command python.exe -ErrorAction Stop).Source
+          & $fixturePython --version
+          "ATRIO_TEST_PYTHON=$fixturePython" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+      - name: Install Rust MSVC target
+        shell: pwsh
+        run: rustup target add x86_64-pc-windows-msvc
+      - name: Compile and test Windows Host
+        run: cargo test --locked --manifest-path src-tauri/Cargo.toml --target x86_64-pc-windows-msvc -- --test-threads=4
+      - name: Check Windows Host without running tests
+        run: cargo check --locked --manifest-path src-tauri/Cargo.toml --target x86_64-pc-windows-msvc
+
+  macos-native:
+    name: macOS native / arm64
+    runs-on: macos-14
+    timeout-minutes: 30
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22.23.3"
+          cache: npm
+      - name: Install shared and pinned ACP dependencies
+        run: |
+          npm ci
+          mkdir -p work/dependencies/codex-acp
+          cp scripts/windows/adapter/package*.json work/dependencies/codex-acp/
+          npm ci --prefix work/dependencies/codex-acp --ignore-scripts --no-audit --no-fund
+      - name: Verify pinned macOS Node archive source
+        run: |
+          mkdir -p work/runtime-downloads
+          curl --fail --location --output work/runtime-downloads/node.tar.gz https://nodejs.org/dist/v22.23.3/node-v22.23.3-darwin-arm64.tar.gz
+          echo '23b25245dcfb9af7262f8ff142e9e2e0af025368117329e7a7458a51e5922f53  work/runtime-downloads/node.tar.gz' | shasum -a 256 --check
+          tar -xzf work/runtime-downloads/node.tar.gz -C work/runtime-downloads
+      - name: Prepare macOS runtime from pinned sources
+        run: |
+          cp scripts/codex-runtime.lock.json work/macos-runtime.lock.before.json
+          node scripts/package-codex-runtime.mjs prepare "$PWD/work/dependencies/codex-acp" "$PWD/work/runtime-downloads/node-v22.23.3-darwin-arm64"
+          node scripts/package-codex-runtime.mjs verify
+      - name: Run platform fixtures and compile macOS Host
+        run: |
+          npm run candidate:test
+          rustup target add aarch64-apple-darwin
+          cargo test --locked --manifest-path src-tauri/Cargo.toml --target aarch64-apple-darwin -- --test-threads=4
+          cargo check --locked --manifest-path src-tauri/Cargo.toml --target aarch64-apple-darwin

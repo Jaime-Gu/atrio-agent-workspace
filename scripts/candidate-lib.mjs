@@ -13,6 +13,7 @@ import {
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { verifyLockedCodexRuntime } from "./package-codex-runtime.mjs";
+import { verifyLockedCodexRuntime as verifyWindowsRuntime } from "./windows/package-codex-runtime-windows.mjs";
 
 const excludedRoots = new Set([
   "node_modules",
@@ -27,6 +28,18 @@ export const sha256 = (bytes) =>
   createHash("sha256").update(bytes).digest("hex");
 export const fileHash = (file) => sha256(readFileSync(file));
 const json = (file) => JSON.parse(readFileSync(file, "utf8"));
+const executableMode = (stat) => process.platform === "win32" ? false : Boolean(stat.mode & 0o111);
+export function npmInvocation(args) {
+  if (process.platform !== "win32") return { command: "npm", args };
+  const cli = process.env.npm_execpath ?? path.join(path.dirname(process.execPath), "node_modules/npm/bin/npm-cli.js");
+  if (!existsSync(cli)) throw new Error("Cannot locate npm-cli.js beside node.exe; run through npm or set npm_execpath.");
+  return { command: process.execPath, args: [cli, ...args] };
+}
+function runtimeIdentity(root) {
+  if (process.platform === "darwin") return verifyLockedCodexRuntime(root);
+  if (process.platform !== "win32") return null;
+  return verifyWindowsRuntime(root);
+}
 export const writeJson = (file, value, exclusive = false) =>
   writeFileSync(file, JSON.stringify(value, null, 2) + "\n", {
     flag: exclusive ? "wx" : "w",
@@ -47,6 +60,7 @@ export function sourceFiles(root) {
       const rel = relative ? `${relative}/${name}` : name;
       if (
         (!relative && excludedRoots.has(name)) ||
+        name === "node_modules" ||
         excludedPaths.has(rel) ||
         name === ".DS_Store" ||
         name.endsWith(".tsbuildinfo")
@@ -64,7 +78,7 @@ export function sourceFiles(root) {
         files.push({
           path: rel,
           sha256: fileHash(path.join(root, rel)),
-          executable: Boolean(stat.mode & 0o111),
+          executable: executableMode(stat),
         });
       else throw new Error(`Unsupported source entry: ${rel}`);
     }
@@ -78,6 +92,20 @@ function toolVersion(command, args) {
   return result.status === 0 ? result.stdout.trim() : null;
 }
 export function toolchains(root) {
+  if (process.platform === "win32") {
+    const npm = npmInvocation(["--version"]);
+    return {
+      node: process.version,
+      npm: toolVersion(npm.command, npm.args),
+      rustc: toolVersion("rustc", ["--version"]),
+      cargo: toolVersion("cargo", ["--version"]),
+      hostPlatform: process.platform,
+      hostArchitecture: process.arch,
+      target: "x86_64-pc-windows-msvc",
+      executableMode: "not-applicable-on-windows",
+      archiveTool: toolVersion("tar", ["--version"]),
+    };
+  }
   const rust = spawnSync(
     "bash",
     [
@@ -153,8 +181,8 @@ export function freezeCandidate(root, { candidateId, directory, tools } = {}) {
   mkdirSync(parent, { recursive: true });
   const folder = path.join(parent, candidateId);
   mkdirSync(folder); // Never replace an existing candidate or its evidence.
-  const runtimeResources = verifyLockedCodexRuntime(root);
   const files = sourceFiles(root);
+  const runtimeResources = runtimeIdentity(root);
   const sourceTreeFingerprint = treeFingerprint(files);
   const archive = path.join(folder, "source.tar.gz");
   const fileList = path.join(folder, "source-files.txt");
@@ -167,14 +195,12 @@ export function freezeCandidate(root, { candidateId, directory, tools } = {}) {
     throw new Error(
       "Source changed while freezing; discard this incomplete candidate and freeze a new one.",
     );
-  if (
-    JSON.stringify(verifyLockedCodexRuntime(root)) !==
-    JSON.stringify(runtimeResources)
-  )
-    throw new Error(
-      "Runtime resources changed while freezing; freeze a new candidate.",
-    );
+  if (JSON.stringify(runtimeIdentity(root)) !== JSON.stringify(runtimeResources))
+    throw new Error("Runtime resources changed while freezing; freeze a new candidate.");
   const sourceFingerprint = `sha256:${fileHash(archive)}`;
+  const provenancePath = path.join(root, "windows-provenance.json");
+  const windowsProvenance = process.platform === "win32" && existsSync(provenancePath)
+    ? json(provenancePath) : null;
   const configPaths = files.filter(
     ({ path: name }) =>
       name === "package.json" ||
@@ -192,6 +218,15 @@ export function freezeCandidate(root, { candidateId, directory, tools } = {}) {
     schemaVersion: 1,
     candidateId,
     baseVersion,
+    platform: process.platform,
+    architecture: process.arch,
+    ...(windowsProvenance ? {
+      derivedFrom: windowsProvenance.derivedFrom,
+      importedWindowsCandidate: windowsProvenance.importedWindowsCandidate,
+      sharedBaselineCommit: windowsProvenance.sharedBaselineCommit,
+      receivingBaselineCommit: windowsProvenance.receivingBaselineCommit,
+      provenance: windowsProvenance,
+    } : {}),
     createdAt: new Date().toISOString(),
     source: {
       originRoot: path.resolve(root),
@@ -222,7 +257,7 @@ export function freezeCandidate(root, { candidateId, directory, tools } = {}) {
         identifier: "dev.pixel.workspace",
         runtime: "native daily data compatibility",
         frontendMode: "native-beta",
-        signing: "ad-hoc / not notarized",
+        signing: process.platform === "win32" ? "unsigned / SmartScreen reputation not established" : "ad-hoc / not notarized",
       },
     },
     evidence:
@@ -259,6 +294,14 @@ export function readCandidate(manifestPath) {
 }
 export function verifyCandidate(root, manifestPath) {
   const manifest = readCandidate(manifestPath);
+  if (manifest.platform && manifest.platform !== process.platform)
+    throw new Error(
+      `Candidate platform mismatch: ${manifest.platform}; current host is ${process.platform}.`,
+    );
+  if (manifest.architecture && manifest.architecture !== process.arch)
+    throw new Error(
+      `Candidate architecture mismatch: ${manifest.architecture}; current host is ${process.arch}.`,
+    );
   const actual = sourceFiles(root);
   if (treeFingerprint(actual) !== manifest.source.sourceTreeFingerprint) {
     const before = new Map(
@@ -286,14 +329,16 @@ export function verifyCandidate(root, manifestPath) {
     throw new Error(
       "Installed dependency metadata changed; freeze a new candidate before building.",
     );
-  const runtimeResources = verifyLockedCodexRuntime(root);
-  if (
-    JSON.stringify(runtimeResources) !==
-    JSON.stringify(manifest.runtimeResources ?? null)
-  )
-    throw new Error(
-      "Candidate runtime resource identity changed; freeze a new candidate before building.",
-    );
+  if (manifest.runtimeResources) {
+    const runtimeResources = runtimeIdentity(root);
+    if (
+      JSON.stringify(runtimeResources) !==
+      JSON.stringify(manifest.runtimeResources ?? null)
+    )
+      throw new Error(
+        "Candidate runtime resource identity changed; freeze a new candidate before building.",
+      );
+  }
   return manifest;
 }
 export function buildIdentity(root, channel, env = process.env) {
@@ -349,7 +394,7 @@ export function artifactIdentity(file) {
         entries.push({
           path: rel,
           sha256: fileHash(item),
-          executable: Boolean(entry.mode & 0o111),
+          executable: executableMode(entry),
         });
     }
   }
@@ -372,6 +417,29 @@ export function recordBuild(root, channel, artifacts, env = process.env) {
     identity.buildId,
   );
   mkdirSync(buildDir, { recursive: true });
+  const runtimeLockPath = path.join(
+    root,
+    "scripts/runtime/codex-runtime.windows-x64.lock.json",
+  );
+  const codexRuntime =
+    process.platform === "win32" && existsSync(runtimeLockPath)
+      ? (() => {
+          const lock = json(runtimeLockPath);
+          return {
+            lockPath: "scripts/runtime/codex-runtime.windows-x64.lock.json",
+            lockSha256: fileHash(runtimeLockPath),
+            manifestSha256: lock.manifestSha256,
+            platform: lock.platform,
+            architecture: lock.architecture,
+            versions: lock.versions,
+            fileCount: lock.files?.length ?? 0,
+            totalBytes: (lock.files ?? []).reduce(
+              (sum, entry) => sum + Number(entry.bytes ?? 0),
+              0,
+            ),
+          };
+        })()
+      : null;
   const record = {
     schemaVersion: 1,
     ...identity,
@@ -382,6 +450,7 @@ export function recordBuild(root, channel, artifacts, env = process.env) {
     candidateManifest: manifestPath,
     candidateManifestSha256: fileHash(manifestPath),
     artifacts: artifacts.map(artifactIdentity),
+    ...(codexRuntime ? { codexRuntime } : {}),
     acceptance: "NOT_TESTED",
   };
   writeJson(path.join(buildDir, "build.json"), record, true);
