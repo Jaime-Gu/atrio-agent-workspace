@@ -2,41 +2,35 @@
 
 ## 当前来源
 
-共享源码版本为 `0.0.6`，建立本目录结构前的 `main` 提交为 `0b6e74c75cc57e500888d78971cfff741f567ea3`。历史 `0.0.5-atrio-12` 标签继续指向 `7b6fc1817bb5c9afabbc80f3c674effd78a5d443`。
+共享版本为 `0.0.6`。本次 Windows 从 `0.0.5-win-x64-codex-10` 逐文件导入，历史来源 `0.0.5-atrio-02` 与原始 `darwin/arm64` provenance 保留。接收基线为 main `401ad96175561a097eb485521bc1416d4f5a2f1c`、windows/integration `793c12551349452a8ff3a1a18cefbf56640fc3d0`。
 
-Windows 实机成果已从 `0.0.5-win-x64-codex-10` 逐文件导入；历史来源为 `0.0.5-atrio-02`。整合保留当前 0.0.6 公共界面、Codex 行为和原始 darwin/arm64 provenance。本次来源见 `windows-provenance.json`，候选与验收见 Windows 平台说明。
+当前预发布验收候选 `0.0.6-win-x64-02` 来自提交 `3143c49dfbec91c37b1110722cdacc6104c22885`。[PR #2](https://github.com/Jaime-Gu/atrio-agent-workspace/pull/2) 为整合草稿，base 为 `windows/integration`。历史 `0.0.5-atrio-12` 标签继续指向 `7b6fc1817bb5c9afabbc80f3c674effd78a5d443`。
 
 ## 目录职责
 
-| 路径                            | 内容                                                       |
-| ------------------------------- | ---------------------------------------------------------- |
-| `src/`                          | 两个平台共享的 React 界面、类型和交互                      |
-| `src-tauri/src/`                | Rust Host、模块工具、权限与持久化                          |
-| `src-tauri/src/platform/`       | 实际 Windows 进程、IPC、锁、路径、文件操作与 macOS 对应进程/文件实现 |
-| `src-tauri/tauri.conf.json`     | 当前 Beta 配置，包含现有 macOS 资源和打包设置              |
-| `src-tauri/tauri.dev.conf.json` | 当前 Dev 渠道配置                                          |
-| `scripts/`                      | 已接入的构建、版本、候选与运行时脚本                       |
-| `scripts/macos/`                | macOS 构建目录与现有入口说明                               |
-| `scripts/windows/`              | Windows runtime 准备/校验、Dev/Beta 构建、安装与 MCP 验证入口 |
-| `scripts/runtime/`              | 平台运行时清单、资源锁的组织说明                           |
-| `docs/platforms/`               | 平台状态、构建方法与验收要求                               |
-| `.github/workflows/`            | macOS/Windows 共享前端及两个平台原生编译与 fixture 检查 |
-| `work/`                         | 被 Git 忽略的依赖准备文件、工作树、构建产物和验证记录      |
+| 路径 | 内容 |
+|---|---|
+| `src/` | 共享 React 界面、类型与交互 |
+| `src-tauri/src/` | Rust Host、模块工具、权限与持久化 |
+| `src-tauri/src/platform/` | 实际 Windows 进程、IPC、锁、路径、文件操作和对应 macOS 实现 |
+| `src-tauri/tauri.conf.json` | Beta 基础配置，保留 macOS 资源与打包设置 |
+| `src-tauri/tauri.dev.conf.json` | Dev 渠道配置 |
+| `src-tauri/tauri.windows.conf.json` | Windows NSIS、ICO、WebView2 与 runtime 覆盖 |
+| `scripts/` | 共享版本、候选及现有 macOS 入口 |
+| `scripts/windows/` | Windows runtime 准备/验证、Dev/Beta 构建、安装与 MCP fixture |
+| `scripts/runtime/` | Windows x64 runtime lock 与来源说明 |
+| `docs/platforms/` | 实际平台状态、构建方法与限制 |
+| `.github/workflows/` | 两个平台共享前端、Windows MSVC 与 macOS arm64 原生回归 |
+| `work/` | 被忽略的依赖、运行时二进制、构建与验收记录 |
 
-Cargo 清单和锁文件的实际位置为 `src-tauri/Cargo.toml`、`src-tauri/Cargo.lock`。npm 清单和锁文件位于仓库根目录。
+npm manifest/lock 位于仓库根目录；Cargo manifest/lock 位于 `src-tauri/`。平台接口变化同步更新调用方和测试，macOS 现有 runtime 脚本与 lock 保留。共享 Host 统一处理 DTO、审批、revision、权限与数据库，平台实现不降低保护或回退 Mock。
 
-## 平台接入规则
+## 验收与发布
 
-现有 macOS 配置和脚本继续使用当前路径。平台配置拆分时，在同一个提交中更新脚本引用和配置校验；Windows 配置接入时添加 `src-tauri/tauri.windows.conf.json`，明确覆盖目标安装格式、图标和资源路径，并与 Dev/Beta 渠道配置组合验证。
+候选 02 的自动检查、Dev/Beta NSIS 安装和当前原生验收见 [Windows 验收记录](ACCEPTANCE-0.0.6-WINDOWS.md)。[CI 37004579179](https://github.com/Jaime-Gu/atrio-agent-workspace/actions/runs/37004579179) 四项全部 SUCCESS：macOS/Windows 前端各 82 项，Windows MSVC 120 项与 macOS arm64 103 项原生测试及编译通过。macOS CI 的临时 runtime 只作为编译回归，不作为发布包验收。
 
-Rust 平台边界包括子进程、锁、本机 IPC、资源与用户目录、文件替换及目录同步。实现文件在平台目录归属清楚，共享 Host 继续统一处理权限、审批、版本冲突和数据库写入。
+安装、原生 UI、协议 fixture 与真实模型调用分项记录。Synthetic ACP 原生两轮、取消/切换回收、旧工作区备份副本、移动运行目录及缺 adapter/CLI 明确错误均已验证；实际 Codex 只执行 initialize-only 握手，未执行真实 session/prompt。Hermes 跳过，Claude/Codex 真实认证和模型调用为 `NOT_TESTED_BY_USER_SCOPE`。历史报告不能当作新候选通过证据。
 
-## CI 与发布状态
+成果先整合到 `windows/integration`，再通过 PR 合并 main，遵守分支保护与审批。最终 main 提交重新冻结和构建，最终不可变 Release manifest 记录提交、候选、源码/runtime/安装器哈希与未测项目，不预填未知 Release。附件按 `Atrio-WorkSpace-<版本>-<渠道>-<平台>-<架构>.<扩展名>` 命名；不移动旧 tag、不覆盖 Mac 附件，发布后下载核对 SHA-256。
 
-`Shared frontend compilation` 工作流在 `macos-14` 和 `windows-2022` 运行 `npm ci`、版本检查、Dev/Beta 前端编译。CI 的 Node 版本为 `24.18.0`。Codex ACP 随包 Node 版本由运行时锁独立管理，当前 macOS 锁定为 `22.23.3`。
-
-Windows 平台实现、锁与构建入口已接入。编译、fixture、原生界面、安装和真实模型调用分项记录在 `docs/ACCEPTANCE-0.0.6-WINDOWS.md`；冻结候选和构建清单位于被忽略的 `work/`，最终发布附件另附不可变清单。源码接入不等于安装验收完成。
-
-macOS 和 Windows 的构建记录分别标注平台、架构与渠道。Release 附件按照 `Atrio-WorkSpace-<版本>-<渠道>-<平台>-<架构>.<扩展名>` 命名，安装包、运行时归档和 SHA-256 清单按发布需要上传。
-
-分支和独立 Git worktree 的协作规则见 [CONTRIBUTING.md](../CONTRIBUTING.md)。
+分支与独立工作树规则见 [CONTRIBUTING.md](../CONTRIBUTING.md)；详细来源见 [来源记录](PROVENANCE-0.0.6.md)。

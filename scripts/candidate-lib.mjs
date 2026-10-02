@@ -198,6 +198,9 @@ export function freezeCandidate(root, { candidateId, directory, tools } = {}) {
   if (JSON.stringify(runtimeIdentity(root)) !== JSON.stringify(runtimeResources))
     throw new Error("Runtime resources changed while freezing; freeze a new candidate.");
   const sourceFingerprint = `sha256:${fileHash(archive)}`;
+  const provenancePath = path.join(root, "windows-provenance.json");
+  const windowsProvenance = process.platform === "win32" && existsSync(provenancePath)
+    ? json(provenancePath) : null;
   const configPaths = files.filter(
     ({ path: name }) =>
       name === "package.json" ||
@@ -217,8 +220,13 @@ export function freezeCandidate(root, { candidateId, directory, tools } = {}) {
     baseVersion,
     platform: process.platform,
     architecture: process.arch,
-    ...(process.platform === "win32" && existsSync(path.join(root, "windows-provenance.json"))
-      ? { derivedFrom: json(path.join(root, "windows-provenance.json")) } : {}),
+    ...(windowsProvenance ? {
+      derivedFrom: windowsProvenance.derivedFrom,
+      importedWindowsCandidate: windowsProvenance.importedWindowsCandidate,
+      sharedBaselineCommit: windowsProvenance.sharedBaselineCommit,
+      receivingBaselineCommit: windowsProvenance.receivingBaselineCommit,
+      provenance: windowsProvenance,
+    } : {}),
     createdAt: new Date().toISOString(),
     source: {
       originRoot: path.resolve(root),

@@ -1,46 +1,54 @@
 # Windows 0.0.6
 
-Windows 0.0.6 follows the shared 0.0.6 UI, DTO, revision, approval, permission, workspace persistence, and recovery contracts. The receiving branch is `windows/integration`; the release target is Windows x64 with `x86_64-pc-windows-msvc`.
+Windows 已按仓库平台目录接入本机 `0.0.5-win-x64-codex-10` 成果，保留共享 0.0.6 界面、DTO、审批、revision、权限、工作区切换、持久化与恢复语义，以及 Windows Ctrl 快捷键提示。目标为 Windows x64 / `x86_64-pc-windows-msvc`。
 
-## Source and candidate identity
+## 来源与目录
 
-- Candidate: `0.0.6-win-x64-02` (check the remote tags/releases before freezing; never rename a historical candidate).
-- `derivedFrom`: `0.0.5-atrio-02`.
-- `importedWindowsCandidate`: `0.0.5-win-x64-codex-10`.
-- Shared baseline and final merge commit are recorded in `docs/PROVENANCE-0.0.6.md` after the integration PR is merged.
-- The imported local 0.0.5 source had no Git history; integration preserves this repository's shared history. Freeze records a source fingerprint, runtime lock/hash, target, toolchain, and build artifact hashes.
+历史来源为 `0.0.5-atrio-02`，本机导入候选为 `0.0.5-win-x64-codex-10`。原始 `darwin/arm64` provenance 保留不变。本次预发布验收候选为 `0.0.6-win-x64-02`，提交 `3143c49dfbec91c37b1110722cdacc6104c22885`；来源见 [来源记录](../PROVENANCE-0.0.6.md)。接收分支为 `windows/integration`，最终 main 合并构建另冻结新候选。
 
-## Platform layout
+| 目录 | 实际职责 |
+|---|---|
+| `src/` | 两个平台共享界面、类型和交互 |
+| `src-tauri/src/platform/windows/` | Windows 进程/Job Object、环境、IPC、锁、物理路径与文件操作 |
+| `src-tauri/src/platform/macos/` | 对应 macOS 实现，保留条件编译与行为 |
+| `src-tauri/src/platform/mod.rs` | 公共接口与平台分派 |
+| `scripts/windows/` | runtime 准备/验证、Dev/Beta 构建、安装和 MCP fixture |
+| `scripts/runtime/` | Windows x64 实际文件生成的 runtime lock |
+| `src-tauri/tauri.windows.conf.json` | Windows ICO、NSIS、WebView2 与资源映射，和渠道配置组合 |
+| `work/` | 被忽略的依赖、二进制、构建及验收证据 |
 
-- Shared UI and contracts stay under `src/`.
-- Windows process, environment, job, IPC, path, lock, and filesystem code lives under `src-tauri/src/platform/windows/`; platform dispatch remains in `src-tauri/src/platform/mod.rs` and macOS files remain available for conditional compilation.
-- `scripts/windows/` contains runtime preparation, verification, candidate build, and adapter setup. `scripts/runtime/codex-runtime.windows-x64.lock.json` is generated from Windows files only.
-- `src-tauri/tauri.windows.conf.json` adds the Windows ICO, NSIS current-user installer, WebView2 bootstrapper, and runtime resource mapping. It is composed with `tauri.dev.conf.json` for Dev builds.
+Windows 启动采用 `CREATE_SUSPENDED` → 绑定 Job → 恢复；取消、断开、退出和工作区切换回收应用创建的进程树与读取线程。独立启动的用户 Codex 不归该 Job 管理。Named Pipe 使用当前用户 ACL，并保留 session/run scope、token、长度和超时检查。
 
-## Codex ACP payload
-
-The payload pins `@agentclientprotocol/codex-acp@1.13.1` and official Node `22.23.3` win-x64. It contains `bin/node.exe`, `adapter/index.js`, a minimal adapter package manifest, `manifest.json`, and `LICENSES/`. The launch plan is `node.exe adapter/index.js`; the official Codex CLI and user authentication stay outside the application.
+## 构建
 
 ```powershell
 npm ci
-node scripts/windows/package-codex-runtime-windows.mjs prepare [<adapter-dependencies>] [<node-v22.23.3-win-x64>]
-node scripts/windows/package-codex-runtime-windows.mjs verify
+npm run version:check
+npm test
+npm run build:dev
+npm run build:beta
+npm run windows:runtime:prepare
+npm run windows:runtime:verify
 npm run windows:dev:build
 npm run windows:beta:build
 ```
 
-The Tauri bundle maps staged resources into `agents/codex`. Installed builds resolve runtime relative to the production EXE and also accept the Dev staging path `resources/agents/codex`; this preserves the candidate-10 installer fix. The AppContainer `LocalCache\\Roaming` alias and physical-parent containment fixes remain required. Unsupported UNC, network mapped drives, and untrusted reparse paths stay explicitly rejected.
+准备流程使用仓库内 adapter manifest/lock，在 `work/` 执行锁定安装，并按官方来源和 SHA-256 下载 Windows Node。固定 ACP `1.13.1`、Node `22.23.3`。payload 包含 `bin/node.exe`、`adapter/index.js`、最小 package manifest、`manifest.json` 和许可证，启动计划为 `node.exe adapter/index.js`。官方 Codex CLI、登录和个人配置由本机用户管理。
 
-## Checks and acceptance
+NSIS runtime 位于 EXE 相邻 `agents/codex`；resolver 同时兼容 Dev `resources/agents/codex` 布局，保留 candidate-10 安装修复。AppContainer `LocalCache\Roaming` alias、临时文件物理父目录及 SQLite containment 修复保留。UNC、网络映射盘和不受信任 reparse 路径仍不支持，不放宽目录边界检查。
 
-Every candidate report separates compilation, fixtures, ACP protocol handshake, native window/UI, installation, and real provider calls. The Windows CI job prepares the pinned runtime, runs version checks, frontend builds, runtime fixtures, and Rust MSVC tests. macOS CI prepares pinned source archives into an ephemeral runtime for arm64 native compilation and tests; that generated lock is compile evidence and does not replace a macOS release lock or installer acceptance. A successful fixture or MCP stdio check is not a real model call.
+## 当前验收状态
 
-The 0.0.6 report is [docs/ACCEPTANCE-0.0.6-WINDOWS.md](../ACCEPTANCE-0.0.6-WINDOWS.md). Existing 0.0.5 evidence is historical context only; run the checks again for the 0.0.6 candidate. At minimum record Dev/Beta identity and data directories, production startup without a dev server, proposal/approval/revision/permission behavior, ACP handshake and cancellation, workspace switching and restart recovery, clear missing CLI/login/adapter errors, NSIS install/reinstall, paths with spaces and Chinese characters, moved runtime directories, AppContainer aliases, and production EXE MCP stdio.
+候选 02 的 npm/version、前端 82 项、Dev/Beta 前端构建、runtime/candidate fixture、Windows Rust 120 项与编译检查均通过。GitHub [CI 37004579179](https://github.com/Jaime-Gu/atrio-agent-workspace/actions/runs/37004579179) 四项 SUCCESS，包含 macOS arm64 原生编译/103 项测试和 Windows MSVC 回归。macOS 临时 runtime 仅用于编译回归，不是发布包证据。
 
-Provider status for this release remains explicit:
+Dev/Beta NSIS 已安装到含空格和中文的隔离目录；28 文件 / 88,685,465 bytes runtime 完整。Beta 重装保留数据库。安装后生产 EXE MCP stdio 各 11 项通过，真实 provider/database 调用均为 0。原生验收已覆盖 Dev/Beta 身份和数据目录、Mock 审批、revision 冲突、拒绝草稿保留、批准写入、权限禁止/恢复询问、计划/看板 25% 更新及重启恢复。
 
-- Hermes: `SKIPPED_BY_USER` (not installed locally).
-- Claude: `NOT_TESTED` (the user has not logged in).
-- Codex: `NOT_TESTED` for real model calls; use the user's official Windows login only if they later authorize that acceptance.
+Synthetic ACP 已在原生 GUI 完成同 session 两轮、持续任务取消及切换时的进程树回收；工作区 B 的 3 模块持久化，旧工作区完整备份副本成功打开。完整 Beta 运行目录真正移走后，原生 EXE 与 launch plan 从新位置定位 runtime。缺 adapter/CLI 的错误和自动展开诊断已验证。实际随包 Codex ACP initialize-only 握手通过且私有 Job/线程回收；未发送真实 newSession/prompt。Mock 停止尝试时任务已完成，未记通过。完整分项与日志路径见 [Windows 验收记录](../ACCEPTANCE-0.0.6-WINDOWS.md)。
 
-Unsigned development artifacts and unsupported hardware/storage paths must remain labelled in the release notes. Do not commit `node_modules`, `target`, runtime binaries, credentials, user workspaces, or unsanitized logs.
+补充源码修正当前会话与历史探测状态的区分，新增 6 项共享前端回归（总计 88 项）；候选来源拆为四个根字段并嵌入完整历史 provenance，兼容旧 manifest。该补充与最终 main 提交另冻结新候选，历史候选 02 身份不变。
+
+- Hermes：`SKIPPED_BY_USER`，本机未安装。
+- Claude：`NOT_TESTED_BY_USER_SCOPE`，用户暂不登录。
+- Codex：真实认证/模型调用 `NOT_TESTED_BY_USER_SCOPE`；本机 CLI `0.159.0-alpha.12.1` 为 `NotLoggedIn`，真实验收继续用户后置。
+
+当前为整合预发布验收，最终 main 提交重新构建与发布附件以不可变 Release 清单为准。安装包尚未建立签名/SmartScreen 声誉，发布说明须保留未测项目和路径限制。源码仓库不提交运行时二进制、target、node_modules、认证、用户工作区或未脱敏日志。

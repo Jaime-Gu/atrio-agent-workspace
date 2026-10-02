@@ -83,6 +83,13 @@ function diagnosticState(value: string | undefined, kind: "session" | "auth") {
   if (value === "failed" || value === "request_failed") return "检查失败";
   return value;
 }
+function currentSessionState(connection: DisplayConnection | undefined) {
+  if (!connection) return "待检查";
+  if (connection.status === "connected") return "已连接";
+  if (connection.status === "connecting") return "连接中";
+  if (connection.status === "stopping") return "停止中";
+  return "未连接";
+}
 export const moduleTypes = [
   {
     type: "conversation" as const,
@@ -645,7 +652,7 @@ export function SettingsPanel({
       <p className="help-text">
         宿主：{providers[provider].host} · ACP 入口：
         {providers[provider].command}
-        。已找到命令；连接后显示已连接。
+        。探测后显示命令检查结果；连接状态以当前会话为准。
       </p>
       <label className="field">
         环境变量 · JSON
@@ -848,12 +855,7 @@ export function SettingsPanel({
                       : "未找到"
                     : "待检查"}
                   {" · 会话："}
-                  {displayConnection?.status === "connected"
-                    ? "已连接"
-                    : diagnosticState(
-                        displayConnection?.probe?.sessionStatus,
-                        "session",
-                      )}
+                  {currentSessionState(displayConnection)}
                   {" · 认证："}
                   {diagnosticState(
                     displayConnection?.probe?.authenticationStatus,
@@ -890,7 +892,10 @@ export function SettingsPanel({
                     )}
                     {displayConnection?.providerSessionId && (
                       <p className="path-text">
-                        会话：{displayConnection.providerSessionId}
+                        {displayConnection.status === "connected"
+                          ? "会话："
+                          : "上次会话："}
+                        {displayConnection.providerSessionId}
                       </p>
                     )}
                     {displayConnection?.probe && (
@@ -924,7 +929,8 @@ export function SettingsPanel({
                             : "未通过"}
                         </p>
                         <p>
-                          握手：{displayConnection.probe.handshakeStatus}
+                          上次检查结果 · 握手：
+                          {displayConnection.probe.handshakeStatus}
                           ；会话：
                           {displayConnection.probe.sessionStatus}
                           ；认证/服务调用：

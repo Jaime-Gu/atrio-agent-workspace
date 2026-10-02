@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import {
   mkdtempSync,
   mkdirSync,
@@ -216,4 +217,41 @@ test("changed installed dependency metadata requires a new candidate", (t) => {
     () => verifyCandidate(f.root, manifestPath),
     /dependency version drift/,
   );
+});
+
+test("Windows candidate separates source identities and preserves the actual frozen Git commit", { skip: process.platform !== "win32" }, (t) => {
+  const f = fixture(t);
+  const provenance = {
+    schemaVersion: 1,
+    derivedFrom: "0.0.5-atrio-02",
+    importedWindowsCandidate: "0.0.5-win-x64-codex-10",
+    sharedBaselineCommit: "401ad96175561a097eb485521bc1416d4f5a2f1c",
+    receivingBaselineCommit: "793c12551349452a8ff3a1a18cefbf56640fc3d0",
+    historicalSource: { platform: "darwin", architecture: "arm64" },
+    finalReleaseCommit: "Recorded in the final immutable candidate/build manifest after main merge",
+  };
+  f.put("windows-provenance.json", JSON.stringify(provenance));
+  execFileSync("git", ["-C", f.root, "init", "-q"]);
+  execFileSync("git", ["-C", f.root, "add", "."]);
+  execFileSync("git", ["-C", f.root, "-c", "user.name=Candidate fixture", "-c", "user.email=candidate-fixture@example.test", "commit", "--no-gpg-sign", "-q", "-m", "candidate provenance fixture"]);
+  const actualCommit = execFileSync("git", ["-C", f.root, "rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+  const { manifest, manifestPath } = f.freeze();
+  for (const key of ["derivedFrom", "importedWindowsCandidate", "sharedBaselineCommit", "receivingBaselineCommit"])
+    assert.equal(manifest[key], provenance[key]);
+  assert.equal(typeof manifest.derivedFrom, "string");
+  assert.deepEqual(manifest.provenance, provenance);
+  assert.equal(manifest.provenance.historicalSource.platform, "darwin");
+  assert.equal(manifest.source.git.commit, actualCommit);
+  assert.notEqual(manifest.source.git.commit, manifest.sharedBaselineCommit);
+  assert.equal(Object.hasOwn(manifest, "finalReleaseCommit"), false);
+  verifyCandidate(f.root, manifestPath);
+
+  // A synthetic old-format manifest remains readable; real historical files
+  // are never rewritten by this migration.
+  const historical = { ...manifest, derivedFrom: provenance };
+  for (const key of ["provenance", "importedWindowsCandidate", "sharedBaselineCommit", "receivingBaselineCommit"])
+    delete historical[key];
+  writeJson(manifestPath, historical);
+  assert.deepEqual(verifyCandidate(f.root, manifestPath).derivedFrom, provenance);
+  assert.equal(verifyCandidate(f.root, manifestPath).source.git.commit, actualCommit);
 });
