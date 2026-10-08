@@ -1,5 +1,7 @@
 # Atrio WorkSpace · 0.0.6 体验版本
 
+0.0.7[1] 开发分区入口：[编码分区规划](docs/WORKTREE_PARTITIONS.md)。按角色任务卡建立独立 worktree，代码仍从线上 0.0.6 标签开始。
+
 仓库协作入口：[目录与分支](docs/REPOSITORY.md) · [提交与合并](CONTRIBUTING.md) · [macOS](docs/platforms/macos.md) · [Windows](docs/platforms/windows.md)。当前共享源码为 0.0.6；Windows 实机代码等待接入，平台状态分别记录。
 
 > 当前 0.0.6 使用 `Dev → Beta` 验收。跨电脑协作使用以上仓库内文档；历史候选与验收报告继续保留在发布归档及本机持续更新 Handoff 中。

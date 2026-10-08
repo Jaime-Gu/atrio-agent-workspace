@@ -1,5 +1,11 @@
 # 提交与合并
 
+0.0.7[1] 多对话开发使用 [编码分区规划](docs/WORKTREE_PARTITIONS.md) 和 [角色任务卡](docs/worktrees/roles/integration.md)。该轮的文件写入归属、依赖提交、端口交接、revision 规则按分区清单执行。
+
+分区准备以线上 `0.0.6` 标签为代码起点。契约先提交，Host 与 UI 获取同一契约后并行实现；integration 串行合并，validation 从固定完整提交验收。产品文件冲突退回原负责人修复。新增目录或写入路径由 integration 先登记唯一负责人。
+
+分区分支已经准备好；每位开发者在自己的路径创建 Git worktree。任务分支未合并前，不能根据其准备文档宣称产品功能或新版本已完成。
+
 ## 分支
 
 `main` 保存共享源码和已合并的平台实现。使用任务分支开发，通过 Pull Request 合并到 `main`。
