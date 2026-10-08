@@ -124,6 +124,7 @@ stackOrder 使用每模块独立整数，正常顺序为 1..N，空工作区为�
 - 集成阶段固定 1420/1421/1422 归 integration；验收阶段释放后显式交给 validation，不能同时启动或终止未知服务。
 - worktree 不隔离 Bundle ID、SQLite、IPC、应用设置和锁。同机原生 Dev/Beta 只运行一个验收执行者，按渠道顺序检查，备份/恢复渠道设置并使用独立 A/B/A-copy 工作区。
 - Host 分区只运行自己专用真实目录与数据库的自动测试，不启动用户日常 GUI。中间结果位于被忽略的 work，不使用 /tmp。
+- Rust/Node 历史测试使用系统临时目录，执行前先建立本工区 `work/test-temp/`，将 TMPDIR、TMP、TEMP 指向该绝对路径，并核对运行时临时目录解析结果。不能只修改文档而继续写入系统临时目录。
 - 运行时二进制不会随 Git 自动出现；integration 按原平台锁准备、校验 macOS/Windows 资源。不能省略哈希、许可证或签名校验。
 - 凭据、个人 profile、用户工作区禁止进入 Git 或 .worktreeinclude；非敏感开发配置逐项登记复制用途。
 
@@ -132,6 +133,8 @@ stackOrder 使用每模块独立整数，正常顺序为 1..N，空工作区为�
 contracts 检查类型、布局纯函数和脚本；Host 检查真实目录/SQLite/manifest、兼容、幂等、revision 和恢复；UI 检查真实组件、菜单、焦点、悬浮布局、即时置顶和 Web 保存。
 
 integration 在完整提交执行：
+
+执行前由各文件负责人审查实际测试方法。线上基线的 App/api 测试存在 `vi.mock`，Windows runtime 测试存在模拟二进制；受影响检查必须先由所属负责人改成真实组件、接口或存储验证，再执行对应命令。未完成时记录阻碍，不能用历史模拟测试结果宣称本轮满足约束，也不能省略失败检查制造通过结果。本次分区准备不修改这些产品测试。
 
 ```sh
 npm ci
