@@ -1,5 +1,7 @@
 # 目录与分支
 
+0.0.7[1] 多对话协作使用 [编码分区规划](WORKTREE_PARTITIONS.md)。对应角色分支以 `0.0.6` 标签和共同的分区准备提交开始；各平台运行时准备与验收仍遵守平台说明。
+
 ## 当前来源
 
 共享版本为 `0.0.6`。本次 Windows 从 `0.0.5-win-x64-codex-10` 逐文件导入，历史来源 `0.0.5-atrio-02` 与原始 `darwin/arm64` provenance 保留。接收基线为 main `401ad96175561a097eb485521bc1416d4f5a2f1c`、windows/integration `793c12551349452a8ff3a1a18cefbf56640fc3d0`。
