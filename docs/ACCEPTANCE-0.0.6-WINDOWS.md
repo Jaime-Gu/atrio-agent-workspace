@@ -2,9 +2,9 @@
 
 最终发布候选：`0.0.6-win-x64-03`，发布源码提交 `53e45575bfd6f0d8de7f1c1e5ada64862dfc859c`，Windows x64 / `x86_64-pc-windows-msvc`。记录日期：2026-10-03（Asia/Shanghai）。源码指纹：`sha256:e90729d776580b34f50a53e4da04b118f0c2814d0c862b6eecfb128f01efbee3`。最终 main 冻结时工作树 clean；[#2](https://github.com/Jaime-Gu/atrio-agent-workspace/pull/2) 和 [#3](https://github.com/Jaime-Gu/atrio-agent-workspace/pull/3) 已合并。
 
-[Windows 0.0.6 Release](https://github.com/Jaime-Gu/atrio-agent-workspace/releases/tag/0.0.6) 已发布，标记为 Pre-release；发布时间 2026-10-03 01:43:19（Asia/Shanghai）。仓库为 PRIVATE，下载 Release 附件需要具备该仓库的 GitHub 访问权限。
+[Windows 0.0.6 Release](https://github.com/Jaime-Gu/atrio-agent-workspace/releases/tag/0.0.6) 已发布，标记为 Pre-release；发布时间 2026-10-03 01:43:19（Asia/Shanghai）。仓库已于 2026-10-04 转为 PUBLIC，Release 附件可公开下载。
 
-发布后已通过有仓库权限的 GitHub 会话重新下载全部 12 个附件，逐文件 SHA-256 与已验收 staging 产物一致；`SHA256SUMS` 的 11 个条目及清单自身哈希均通过核对。两份安装器 SHA-256 保持上述固定值。独立复核证据为 `work/evidence/release-download-verification.json` 与 `release-download-verified-root.json`；未声明匿名下载可用。
+发布后已通过有仓库权限的 GitHub 会话重新下载全部 12 个附件，逐文件 SHA-256 与已验收 staging 产物一致；`SHA256SUMS` 的 11 个条目及清单自身哈希均通过核对。两份安装器 SHA-256 保持上述固定值。独立复核证据为 `work/evidence/release-download-verification.json` 与 `release-download-verified-root.json`；当前附件支持匿名下载。
 
 实机系统：Windows 11 Home 中文版 `10.0.26200` / build `26200`，x64。其他 Windows 版本未实机验收，ARM64 不属于本次发布目标。NSIS `currentUser` 安装；缺少 WebView2 时，silent downloadBootstrapper 需要网络。
 

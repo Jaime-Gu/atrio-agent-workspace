@@ -4,9 +4,9 @@
 
 Windows 0.0.6 的最终发布候选为 `0.0.6-win-x64-03`（Windows x64/MSVC），从 main `53e45575bfd6f0d8de7f1c1e5ada64862dfc859c` clean 冻结；源码指纹 `sha256:e90729d776580b34f50a53e4da04b118f0c2814d0c862b6eecfb128f01efbee3`。候选 02 的完整原生证据和最终 03 的复验子集分别登记，见 [验收记录](ACCEPTANCE-0.0.6-WINDOWS.md)。ACP/Node 清单为 `scripts/runtime/codex-runtime.windows-x64.lock.json`，由 Windows 实际文件生成。
 
-[Windows 0.0.6 Release](https://github.com/Jaime-Gu/atrio-agent-workspace/releases/tag/0.0.6) 已发布，标记为 Pre-release；发布时间 2026-10-03 01:43:19（Asia/Shanghai）。仓库为 PRIVATE，下载 Release 附件需要具备该仓库的 GitHub 访问权限。
+[Windows 0.0.6 Release](https://github.com/Jaime-Gu/atrio-agent-workspace/releases/tag/0.0.6) 已发布，标记为 Pre-release；发布时间 2026-10-03 01:43:19（Asia/Shanghai）。仓库已于 2026-10-04 转为 PUBLIC，Release 附件可公开下载。
 
-发布后已通过有仓库权限的 GitHub 会话重新下载全部 12 个附件，逐文件 SHA-256 与已验收 staging 产物一致；`SHA256SUMS` 的 11 个条目及清单自身哈希均通过核对。两份安装器 SHA-256 保持上述固定值。独立复核证据为 `work/evidence/release-download-verification.json` 与 `release-download-verified-root.json`；未声明匿名下载可用。
+发布后已通过有仓库权限的 GitHub 会话重新下载全部 12 个附件，逐文件 SHA-256 与已验收 staging 产物一致；`SHA256SUMS` 的 11 个条目及清单自身哈希均通过核对。两份安装器 SHA-256 保持上述固定值。独立复核证据为 `work/evidence/release-download-verification.json` 与 `release-download-verified-root.json`；当前附件支持匿名下载。
 
 Release candidate/build JSON 是脱敏发布投影；其下载 SHA-256 以 `SHA256SUMS` 为准。metadata 单独登记 `originalFrozenManifestSha256`，保留与本机原冻结清单的关联；原 source.tar.gz 不改写。
 

@@ -1,6 +1,6 @@
 # Atrio WorkSpace · 0.0.6 体验版本
 
-仓库协作入口：[目录与分支](docs/REPOSITORY.md) · [提交与合并](CONTRIBUTING.md) · [macOS](docs/platforms/macos.md) · [Windows](docs/platforms/windows.md)。当前共享源码为 0.0.6；Windows 实机代码等待接入，平台状态分别记录。
+仓库协作入口：[目录与分支](docs/REPOSITORY.md) · [提交与合并](CONTRIBUTING.md) · [macOS](docs/platforms/macos.md) · [Windows](docs/platforms/windows.md)。当前共享源码为 0.0.6；Windows x64 原生代码已接入并发布 0.0.6 Pre-release，macOS arm64 保留源码构建与 CI，平台状态分别记录。
 
 > 当前 0.0.6 使用 `Dev → Beta` 验收。跨电脑协作使用以上仓库内文档；历史候选与验收报告继续保留在发布归档及本机持续更新 Handoff 中。
 
@@ -118,7 +118,7 @@ npm run desktop:beta:build
 ~/Library/Application Support/dev.pixel.workspace/Workspace/
 ```
 
-上面是 Beta 目录，兼容历史体验数据。Dev 默认使用 `~/Library/Application Support/dev.pixel.workspace.dev/Workspace/`。当前仍未实现跨进程工作区锁，即使两渠道默认目录不同，也不要让两个实例手动选择同一工作区。
+上面是 Beta 目录，兼容历史体验数据。Dev 默认使用 `~/Library/Application Support/dev.pixel.workspace.dev/Workspace/`。当前已实现渠道单实例锁、物理工作区进程锁及旧写入者检查；锁不能约束不合作的外部进程，接管旧数据前仍应正常退出旧写入者并完整备份。
 
 「设置与连接 → 选择工作区目录」可切换工作区。最后选择的目录记录在应用数据目录的 `workspace-selection.json` 中，下次启动继续使用。以界面显示的工作区绝对路径为准。
 
