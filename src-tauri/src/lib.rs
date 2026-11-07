@@ -271,7 +271,10 @@ fn dispatch(
     };
     if let Some(snapshot) = snapshot {
         if let Err(error) = app.emit("workspace://changed", &snapshot) {
-            return Err(format!("操作状态已保存，但界面通知失败：{error}"));
+            // The mutation is already persisted; a failed UI notification must
+            // never turn a committed change into a command error — a retry
+            // would duplicate non-idempotent actions such as CreateModule.
+            eprintln!("workspace://changed emit failed: {error}");
         }
     }
     result

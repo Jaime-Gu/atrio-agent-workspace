@@ -90,6 +90,9 @@ function agentActionHint(snapshot: WorkspaceSnapshot): string | null {
       return `Agent 未连接 · 连接`;
   }
 }
+function composerDraftKey(rootPath: string): string {
+  return `atrio-composer-draft:${rootPath}`;
+}
 export default function App() {
   const [appInfo, setAppInfo] = useState<AppInfoState>(initialAppInfo);
   const versionLabel = appVersionLabel(appInfo);
@@ -155,6 +158,8 @@ export default function App() {
   const inputRef = useRef<HTMLTextAreaElement>(null),
     seenApproval = useRef(""),
     alive = useRef(true),
+    sendingRef = useRef(false),
+    restoredComposerRoot = useRef<string | null>(null),
     saveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useEffect(() => {
     let disposed = false;
@@ -229,6 +234,33 @@ export default function App() {
     if (focused && !snapshot?.modules.some((m) => m.id === focused))
       setFocused(null);
   }, [snapshot?.modules, selected, focused]);
+  // The composer draft survives refreshes and workspace switches, keyed by
+  // workspace so returning to a workspace restores what was typed there.
+  // It only restores when the workspace actually changes, never on top of
+  // text the user is typing into an already-open workspace.
+  useEffect(() => {
+    const rootPath = snapshot?.rootPath;
+    if (!rootPath || restoredComposerRoot.current === rootPath) return;
+    restoredComposerRoot.current = rootPath;
+    try {
+      setInput(localStorage.getItem(composerDraftKey(rootPath)) ?? "");
+    } catch {
+      setInput("");
+    }
+  }, [snapshot?.rootPath]);
+  useEffect(() => {
+    const rootPath = snapshot?.rootPath;
+    if (!rootPath) return;
+    const timer = setTimeout(() => {
+      try {
+        if (input) localStorage.setItem(composerDraftKey(rootPath), input);
+        else localStorage.removeItem(composerDraftKey(rootPath));
+      } catch {
+        // Composer drafts are best effort; the typed text stays on screen.
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [input, snapshot?.rootPath]);
   // Async handlers keep the workspace identity of the render that created them.
   // This also prevents a multi-step form from continuing in a copied workspace.
   const renderGeneration = workspaceGeneration.current;
@@ -284,7 +316,8 @@ export default function App() {
     [dispatch],
   );
   const prompt = useCallback((text: string, id?: string) => {
-    setInput(text);
+    // A palette action must never silently wipe what the user already typed.
+    setInput((previous) => (previous.trim() ? `${previous}\n${text}` : text));
     if (id) setSelected(id);
     inputRef.current?.focus();
   }, []);
@@ -293,6 +326,7 @@ export default function App() {
       !input.trim() ||
       switchingWorkspace.current ||
       sending ||
+      sendingRef.current ||
       snapshot?.runStatus === "running" ||
       snapshot?.approvals.length
     )
@@ -308,6 +342,10 @@ export default function App() {
       setPanel("settings");
       return;
     }
+    // The state guard alone is racy: two rapid Enters before the re-render
+    // both see sending === false. The ref is set synchronously, before the
+    // first await, so the second call is rejected in the same tick.
+    sendingRef.current = true;
     setSending(true);
     const generation = workspaceGeneration.current;
     try {
@@ -320,11 +358,18 @@ export default function App() {
     } catch {
       /* retain prompt on failure */
     } finally {
+      sendingRef.current = false;
       if (generation === workspaceGeneration.current) setSending(false);
     }
   };
   const chooseWorkspace = async () => {
     if (switchingWorkspace.current) return;
+    if (
+      input.trim() &&
+      !window.confirm("切换工作区将丢弃当前未发送的消息草稿，继续吗？")
+    )
+      return;
+    const previousRoot = snapshot?.rootPath;
     switchingWorkspace.current = true;
     setSwitching(true);
     try {
@@ -343,6 +388,13 @@ export default function App() {
         setFocused(null);
         setPanel(null);
         setInspect(null);
+        if (previousRoot) {
+          try {
+            localStorage.removeItem(composerDraftKey(previousRoot));
+          } catch {
+            /* Best effort; the discarded draft stays out of the way. */
+          }
+        }
         setInput("");
         setError("");
         setSaved(false);
@@ -748,6 +800,14 @@ export default function App() {
                 }
               >
                 {agentBlock}
+              </button>
+            )}
+            {policy.effective === "full" && (
+              <button
+                className="composer-policy-note"
+                onClick={() => setPanel("policy")}
+              >
+                完全访问：Agent 的内容修改将自动应用，标题与布局变更仍需确认。
               </button>
             )}
             <details

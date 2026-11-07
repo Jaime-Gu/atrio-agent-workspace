@@ -742,16 +742,15 @@ impl Kernel {
             &self.state.agent.id.clone(),
         )?;
         // A proposal and its immutable identity are durable before automatic or
-        // explicit approval. Full access does not infer permission to rearrange.
+        // explicit approval. Full access does not infer permission to rearrange
+        // or retitle: metadata changes (title and/or layout) always need
+        // explicit review, matching the web preview and the policy copy.
         self.persist()?;
         if self.effective_policy() == WorkspacePolicy::Full
-            && !self
-                .state
-                .module_proposals
-                .last()
-                .unwrap()
-                .change
-                .changes_layout()
+            && !matches!(
+                self.state.module_proposals.last().unwrap().change,
+                ModuleChange::Metadata { .. }
+            )
         {
             self.decide_module_proposal(&id, true)?;
             self.persist()?;
@@ -1484,6 +1483,26 @@ mod tests {
         assert!(call(&mut k, &auth, "workspace_propose_changes", args)
             .unwrap_err()
             .contains("碰撞"));
+    }
+
+    #[test]
+    fn full_metadata_title_only_requires_explicit_review() {
+        let f = Fixture::new();
+        let mut k = f.open();
+        k.apply_policy(policy(WorkspacePolicy::Full, 1)).unwrap();
+        let original = doc(&k);
+        let auth = start(&mut k);
+        let proposal = propose(
+            &mut k,
+            &auth,
+            "title-only",
+            original.module_revision.as_deref().unwrap(),
+            json!({"type":"metadata","moduleId":original.id,"title":"A renamed title"}),
+        );
+        assert_eq!(proposal["status"], "pending");
+        assert_eq!(doc(&k).title, original.title);
+        decide(&mut k, &proposal, true).unwrap();
+        assert_eq!(doc(&k).title, "A renamed title");
     }
 
     #[test]

@@ -274,6 +274,8 @@ impl ManagedProcess {
             return Ok(());
         }
         // Snapshot while parentage still exists; include descendants with a different process group.
+        // A snapshot failure here is advisory: it must not wedge the
+        // leader reap below.
         let tracking = self.capture_snapshot();
         self.stop.store(true, Ordering::Release);
         self.stdin.take();
@@ -281,18 +283,46 @@ impl ManagedProcess {
         if !self.leader_reaped {
             let _ = self.child.kill();
         }
-        self.child
-            .wait()
-            .map_err(|_| "无法确认 Agent 子进程已经回收")?;
+        // Bounded wait for the leader instead of a blocking `wait()`: once
+        // the leader is reaped, `finish()` is idempotent and the tracked pid
+        // is cleared even if a descendant lingers (see below).
+        let leader_deadline = Instant::now() + Duration::from_secs(5);
+        loop {
+            match self.child.try_wait() {
+                Ok(Some(_)) => break,
+                Ok(None) => {
+                    if Instant::now() >= leader_deadline {
+                        return Err("Agent 子进程在期限内未回收；停止未确认".into());
+                    }
+                    thread::sleep(Duration::from_millis(10));
+                }
+                Err(_) => return Err("无法确认 Agent 子进程已经回收".into()),
+            }
+        }
         self.leader_reaped = true;
         for reader in self.readers.drain(..) {
             let _ = reader.join();
         }
-        if self.tracked_pid.is_some() {
-            tracking?;
+        // The leader is reaped: mark the process finished and clear the
+        // tracked pid now, so a later `finish()` (or `reap()`) does not
+        // re-queue a dead process and block the next run.
+        if let Some(pid) = &self.tracked_pid {
+            pid.store(0, Ordering::Release);
+        }
+        self.finished = true;
+        // Descendant cleanup is advisory from here on: a lingering descendant
+        // is logged, never an error — the leader is already reaped and the
+        // worker must be allowed to exit.
+        if tracking.is_ok() && self.tracked_pid.is_some() {
             let deadline = Instant::now() + Duration::from_millis(500);
             loop {
-                let snapshot = self.capture_snapshot()?;
+                let snapshot = match self.capture_snapshot() {
+                    Ok(snapshot) => snapshot,
+                    Err(error) => {
+                        eprintln!("Agent descendant check failed after leader reap: {error}");
+                        break;
+                    }
+                };
                 let alive = self.known_descendants.iter().any(|(pid, known)| {
                     snapshot
                         .get(pid)
@@ -302,16 +332,15 @@ impl ManagedProcess {
                     break;
                 }
                 if Instant::now() >= deadline {
-                    return Err("Agent 已知子进程仍未退出；停止未确认".into());
+                    eprintln!(
+                        "Agent known descendant still alive after leader reap; continuing without it"
+                    );
+                    break;
                 }
                 self.signal(libc::SIGKILL);
                 thread::sleep(Duration::from_millis(10));
             }
         }
-        if let Some(pid) = &self.tracked_pid {
-            pid.store(0, Ordering::Release);
-        }
-        self.finished = true;
         Ok(())
     }
 }

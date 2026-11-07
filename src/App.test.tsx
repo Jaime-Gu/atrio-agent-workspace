@@ -160,9 +160,23 @@ describe("App identity and workspace activation", () => {
   afterEach(async () => {
     await act(async () => root.unmount());
     container.remove();
+    localStorage.clear();
   });
   async function mount() {
     await act(async () => root.render(<App />));
+  }
+  async function typeComposer(value: string) {
+    const input = container.querySelector<HTMLTextAreaElement>(
+      '[aria-label="发送给 Agent 的消息"]',
+    )!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(
+        HTMLTextAreaElement.prototype,
+        "value",
+      )!.set!.call(input, value);
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    return input;
   }
   async function click(selector: string) {
     const button = container.querySelector<HTMLButtonElement>(selector);
@@ -560,6 +574,81 @@ describe("App identity and workspace activation", () => {
       { type: "set_overlap", allow: true },
       "/old",
       "A-second",
+    );
+  });
+
+  it("restores the composer draft for the workspace", async () => {
+    localStorage.setItem("atrio-composer-draft:/old", "hello draft");
+    await mount();
+    const input = container.querySelector<HTMLTextAreaElement>(
+      '[aria-label="发送给 Agent 的消息"]',
+    )!;
+    expect(input.value).toBe("hello draft");
+  });
+
+  it("asks before discarding a non-empty composer draft on workspace switch", async () => {
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    try {
+      api.openWorkspace.mockResolvedValue(snapshot("/new", 4000, 1));
+      await mount();
+      await typeComposer("unsent draft");
+      await click(".workspace-switch");
+      expect(api.picker).not.toHaveBeenCalled();
+      expect(shown("workspace")).toBe("/old");
+      confirm.mockReturnValue(true);
+      await click(".workspace-switch");
+      expect(api.picker).toHaveBeenCalledTimes(1);
+      expect(shown("workspace")).toBe("/new");
+    } finally {
+      confirm.mockRestore();
+    }
+  });
+
+  it("appends a palette prompt instead of overwriting typed input", async () => {
+    await mount();
+    await typeComposer("my text");
+    await click(".command-shortcut");
+    const demo = [...container.querySelectorAll("button")].find((b) =>
+      b.textContent?.includes("演示任务失败"),
+    )!;
+    await act(async () => demo.click());
+    const input = container.querySelector<HTMLTextAreaElement>(
+      '[aria-label="发送给 Agent 的消息"]',
+    )!;
+    expect(input.value).toBe("my text\n演示一次任务失败");
+  });
+
+  it("sends a prompt only once on rapid Enter presses", async () => {
+    const prompt = deferred<WorkspaceSnapshot>();
+    api.dispatchAction.mockReturnValue(prompt.promise);
+    await mount();
+    const input = await typeComposer("Do it twice");
+    await act(async () => {
+      input.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
+      );
+      input.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
+      );
+    });
+    expect(api.dispatchAction).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows the full-access banner when the effective policy is full", async () => {
+    const initial = snapshot("/old", 2000, 10);
+    initial.policy = {
+      system: "workspace",
+      local: "full",
+      effective: "full",
+      source: "workspace",
+      epoch: 3,
+      workspaceTrusted: true,
+      hermesScopeAccepted: false,
+    };
+    api.getWorkspace.mockResolvedValue(initial);
+    await mount();
+    expect(container.textContent).toContain(
+      "完全访问：Agent 的内容修改将自动应用，标题与布局变更仍需确认。",
     );
   });
 

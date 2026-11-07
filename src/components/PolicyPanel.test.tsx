@@ -300,14 +300,71 @@ describe("policy and Hermes interface", () => {
     );
     expect(button("允许这次").disabled).toBe(true);
     expect(button("拒绝这次").disabled).toBe(false);
-    await click("拒绝请求");
-    expect(dispatch).toHaveBeenLastCalledWith({
+    // A blocked rejection cannot reach the Host, so the generic reject is
+    // disabled and the panel points at Cancel instead.
+    expect(button("拒绝请求").disabled).toBe(true);
+    expect(container.textContent).toContain("取消任务");
+    expect(dispatch).not.toHaveBeenCalledWith({
       type: "permission_reply",
       approvalId: "p1",
       optionId: null,
     });
     await click("取消任务");
     expect(dispatch).toHaveBeenLastCalledWith({ type: "cancel" });
+  });
+
+  it("asks before switching to full access and skips the switch when declined", async () => {
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    try {
+      await render(policyPanel());
+      await click("完全访问");
+      expect(dispatch).not.toHaveBeenCalledWith({
+        type: "set_workspace_policy",
+        mode: "full",
+      });
+      confirm.mockReturnValue(true);
+      await click("完全访问");
+      expect(dispatch).toHaveBeenLastCalledWith({
+        type: "set_workspace_policy",
+        mode: "full",
+      });
+    } finally {
+      confirm.mockRestore();
+    }
+  });
+
+  it("says title and layout changes still need confirmation under full access", async () => {
+    snapshot.policy!.effective = "full";
+    await render(policyPanel());
+    expect(container.textContent).toContain(
+      "内容修改可自动应用；标题与布局变更仍需确认。",
+    );
+  });
+
+  it("asks before applying a system-wide allow or deny policy", async () => {
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    try {
+      await render(settings());
+      await click("全部允许");
+      expect(dispatch).not.toHaveBeenCalledWith({
+        type: "set_system_policy",
+        mode: "allow_all",
+      });
+      confirm.mockReturnValue(true);
+      await click("全部允许");
+      expect(dispatch).toHaveBeenLastCalledWith({
+        type: "set_system_policy",
+        mode: "allow_all",
+      });
+      confirm.mockReturnValue(false);
+      await click("全部不允许");
+      expect(dispatch).not.toHaveBeenCalledWith({
+        type: "set_system_policy",
+        mode: "deny_all",
+      });
+    } finally {
+      confirm.mockRestore();
+    }
   });
 });
 

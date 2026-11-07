@@ -85,7 +85,7 @@ export function AgentScope({
       )}
       {policy.effective === "full" && (
         <p className="policy-consequence">
-          内容修改可自动应用；布局变更仍需确认。
+          内容修改可自动应用；标题与布局变更仍需确认。
         </p>
       )}
       {policy.effective === "restricted" && (
@@ -167,6 +167,14 @@ export function PolicyPanel({
             aria-pressed={policy.local === mode}
             disabled={busy || policy.source === "system"}
             onClick={async () => {
+              if (
+                mode === "full" &&
+                policy.local !== "full" &&
+                !window.confirm(
+                  "切换到“完全访问”后，Agent 的内容修改将自动应用，不再逐项审批。确定切换吗？",
+                )
+              )
+                return;
               setBusy(true);
               setError("");
               try {
