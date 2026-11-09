@@ -12,7 +12,7 @@
   "platform": "windows",
   "architecture": "x64",
   "target": "x86_64-pc-windows-msvc",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "finalReleaseCommit": "Recorded in the final immutable candidate/build manifest after main merge",
   "providerAcceptance": {
     "hermes": "SKIPPED_BY_USER",

@@ -3,6 +3,7 @@ import { act, StrictMode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ModuleContent } from "./ModuleContent";
+import { documentDraftStorageKey } from "../lib/document-drafts";
 import type {
   Approval,
   WorkspaceModule,
@@ -140,11 +141,18 @@ beforeEach(() => {
   root = createRoot(container);
   snapshot = workspace(`/workspace-${++workspaceIndex}`);
   dispatch = vi.fn(async () => {});
+  localStorage.clear();
+  vi.stubGlobal(
+    "confirm",
+    vi.fn(() => true),
+  );
 });
 
 afterEach(async () => {
   await act(async () => root.unmount());
   container.remove();
+  localStorage.clear();
+  vi.unstubAllGlobals();
 });
 
 describe("document drafts across navigation", () => {
@@ -354,6 +362,127 @@ describe("document drafts across navigation", () => {
     expect(container.querySelector("textarea")).toBeNull();
     await click("编辑");
     expect(editor().value).toBe("# Original");
+  });
+});
+
+describe("document draft persistence", () => {
+  it("restores a draft from localStorage after a reload", async () => {
+    localStorage.setItem(
+      documentDraftStorageKey(snapshot.rootPath, "shared-module-id"),
+      JSON.stringify({
+        text: "# Restored draft",
+        baseRevision: "revision-1",
+        submitted: null,
+        saving: false,
+        hadApproval: false,
+        error: "",
+      }),
+    );
+    await render();
+    expect(editor().value).toBe("# Restored draft");
+  });
+
+  it("writes edits to localStorage as they are typed", async () => {
+    await render();
+    await click("编辑");
+    await input(editor(), "# Typed draft");
+    expect(
+      localStorage.getItem(
+        documentDraftStorageKey(snapshot.rootPath, "shared-module-id"),
+      ),
+    ).toContain("# Typed draft");
+  });
+
+  it("removes the stored draft when it is saved or discarded", async () => {
+    await render();
+    await click("编辑");
+    await input(editor(), "# Draft");
+    const key = documentDraftStorageKey(snapshot.rootPath, "shared-module-id");
+    expect(localStorage.getItem(key)).toContain("# Draft");
+    await click("保存");
+    await render({
+      ...snapshot,
+      modules: [documentModule("# Draft", "revision-2")],
+    });
+    expect(localStorage.getItem(key)).toBeNull();
+  });
+
+  it("surfaces a quota error and keeps the in-memory draft", async () => {
+    // jsdom's localStorage methods live on Storage.prototype; spying on
+    // the instance does not intercept them.
+    const setItem = vi
+      .spyOn(Storage.prototype, "setItem")
+      .mockImplementation(() => {
+        throw new Error("QuotaExceededError");
+      });
+    try {
+      await render();
+      await click("编辑");
+      await input(editor(), "# Draft that cannot persist");
+      expect(editor().value).toBe("# Draft that cannot persist");
+      expect(container.textContent).toContain("本地存储空间不足");
+    } finally {
+      setItem.mockRestore();
+    }
+  });
+
+  it("keeps the draft when cancel is declined, discards it when confirmed", async () => {
+    const confirm = vi.fn(() => false);
+    vi.stubGlobal("confirm", confirm);
+    await render();
+    await click("编辑");
+    await input(editor(), "# Draft");
+    await click("取消");
+    expect(editor().value).toBe("# Draft");
+    confirm.mockReturnValue(true);
+    await click("取消");
+    expect(container.querySelector("textarea")).toBeNull();
+  });
+
+  it("clears the draft when a no-op save resolves with no revision change", async () => {
+    await render();
+    await click("编辑");
+    await input(editor(), "# Draft");
+    await click("保存");
+    await render({
+      ...snapshot,
+      modules: [documentModule("# Draft", "revision-1")],
+    });
+    expect(container.querySelector("textarea")).toBeNull();
+    expect(container.textContent).not.toContain("写入未通过");
+  });
+});
+
+describe("planner task toggle", () => {
+  it("ignores duplicate clicks while a toggle is in flight", async () => {
+    let resolveToggle!: () => void;
+    dispatch.mockImplementation(
+      () =>
+        new Promise<void>((resolveRequest) => {
+          resolveToggle = resolveRequest;
+        }),
+    );
+    snapshot.modules = [
+      {
+        ...documentModule(),
+        type: "planner",
+        tasks: [
+          { id: "t1", title: "Task one", done: false, time: "", tag: "" },
+        ],
+      },
+    ];
+    await render();
+    const checkbox =
+      container.querySelector<HTMLButtonElement>(".mc-task-checkbox")!;
+    expect(checkbox.disabled).toBe(false);
+    await act(async () => {
+      checkbox.click();
+      checkbox.click();
+    });
+    expect(dispatch).toHaveBeenCalledTimes(1);
+    expect(checkbox.disabled).toBe(true);
+    await act(async () => resolveToggle());
+    expect(checkbox.disabled).toBe(false);
   });
 });
 

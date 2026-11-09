@@ -1,13 +1,58 @@
-import type { Approval, ModuleProposal, WorkspaceModule } from "../lib/types";
+import type {
+  Approval,
+  Layout,
+  ModuleProposal,
+  Task,
+  WorkspaceModule,
+} from "../lib/types";
 import { proposalStatusLabels as sharedProposalStatusLabels } from "../lib/ui-copy";
 
 export const proposalStatusLabels = sharedProposalStatusLabels;
-function parseModule(value: string | null): WorkspaceModule | null {
+
+function isFiniteLayout(value: unknown): value is Layout {
+  if (!value || typeof value !== "object") return false;
+  const layout = value as Partial<Layout>;
+  return (["x", "y", "w", "h"] as const).every(
+    (key) => typeof layout[key] === "number" && Number.isFinite(layout[key]),
+  );
+}
+
+function isValidTask(value: unknown): value is Task {
+  if (!value || typeof value !== "object") return false;
+  const task = value as Partial<Task>;
+  return (
+    typeof task.id === "string" &&
+    typeof task.title === "string" &&
+    typeof task.done === "boolean"
+  );
+}
+
+/**
+ * Parses a serialized module from an approval payload. A payload that is
+ * missing the fields the diff actually renders (tasks, layout, content)
+ * returns null so the caller falls back to the raw text instead of throwing
+ * mid-render and unmounting the whole app.
+ */
+export function parseModule(value: string | null): WorkspaceModule | null {
   try {
     const parsed: unknown = JSON.parse(value || "null");
-    return parsed && typeof parsed === "object" && "type" in parsed
-      ? (parsed as WorkspaceModule)
-      : null;
+    if (
+      !parsed ||
+      typeof parsed !== "object" ||
+      typeof (parsed as { type?: unknown }).type !== "string"
+    )
+      return null;
+    const module = parsed as Partial<WorkspaceModule>;
+    if (
+      typeof module.id !== "string" ||
+      typeof module.title !== "string" ||
+      typeof module.content !== "string" ||
+      !Array.isArray(module.tasks) ||
+      !module.tasks.every(isValidTask) ||
+      !isFiniteLayout(module.layout)
+    )
+      return null;
+    return parsed as WorkspaceModule;
   } catch {
     return null;
   }

@@ -184,7 +184,11 @@ impl AgentConnector for NativeAcpConnector {
         self.queue(Control::Dispose)
     }
     fn shutdown(&mut self) -> Result<(), String> {
-        self.shutdown_and_wait(Duration::from_secs(3))
+        // Wait out the worker's full shutdown grace window (cancel 2s +
+        // terminate 2s + forced reap 2s) plus margin for the final reap;
+        // a shorter timeout would report failure for an agent that was
+        // still inside its promised grace window.
+        self.shutdown_and_wait(Duration::from_secs(8))
     }
     fn managed_process_id(&self) -> Option<u32> {
         let pid = self.managed_pid.load(Ordering::Acquire);
@@ -676,9 +680,16 @@ impl Worker {
             match self.commands.recv_timeout(Duration::from_millis(10)) {
                 Ok(Control::Shutdown) | Err(mpsc::RecvTimeoutError::Disconnected) => {
                     if self.shutdown_deadline.is_none() {
-                        // Give session/cancel a real opportunity, even on policy revocation or app exit.
+                        // Give session/cancel a real opportunity, even on policy revocation or app exit:
+                        // the full cancel + terminate + forced-reap escalation
+                        // (2s + 2s + 2s), not a 500 ms truncation of it.
                         let _ = self.stop(self.active.is_some());
-                        self.shutdown_deadline = Some(Instant::now() + Duration::from_millis(500));
+                        self.shutdown_deadline = Some(
+                            Instant::now()
+                                + self.limits.cancel
+                                + self.limits.terminate
+                                + Duration::from_secs(2),
+                        );
                     }
                     thread::sleep(Duration::from_millis(10));
                 }

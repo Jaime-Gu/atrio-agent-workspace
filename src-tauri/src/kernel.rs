@@ -172,6 +172,19 @@ pub struct Approval {
 fn agent_origin() -> String {
     "agent".into()
 }
+
+/// Whether an approval is a metadata change (title and/or layout), read from
+/// its serialized `changes` value (`{"type":"metadata", ...}`). Full access
+/// auto-applies content changes only; metadata always needs explicit review,
+/// matching the web preview and the policy copy.
+fn is_metadata_approval(approval: &Approval) -> bool {
+    approval
+        .changes
+        .as_ref()
+        .and_then(|changes| changes.get("type"))
+        .and_then(|value| value.as_str())
+        == Some("metadata")
+}
 #[derive(Clone, Copy)]
 enum ActionOrigin {
     User,
@@ -767,17 +780,36 @@ impl Kernel {
         }
         self.state.connection.status = "stopping".into();
         self.state.connection.message = reason.into();
-        if let Err(error) = self.connector.shutdown() {
-            self.state.connection.message = format!("停止失败：{error}");
+        // Best-effort shutdown: a hung agent must not wedge disconnect,
+        // cancel, workspace switching, or app exit. Dropping the old
+        // connector below runs its bounded force-reap fallback; the kernel
+        // falls back to Mock and records the failure instead of leaving the
+        // connection stuck in "stopping" with no in-app recovery.
+        let shutdown_failed = if let Err(error) = self.connector.shutdown() {
+            eprintln!("Agent shutdown failed ({error}); forcing Mock fallback");
+            let _ = self.audit(
+                "agent/stop_failed",
+                &format!("Agent 停止失败，已强制回退到 Mock：{error}"),
+                "host",
+            );
             self.state.run_status = RunStatus::Failed;
-            return Err(self.state.connection.message.clone());
-        }
+            Some(error)
+        } else {
+            None
+        };
         self.connector = Box::new(MockAgentConnector::default());
         self.connector_session_ready = false;
         self.lifecycle_context = None;
         self.native_requests.clear();
-        self.state.connection.status = "disconnected".into();
-        self.state.connection.message = format!("{reason}；本应用管理的进程已回收");
+        self.state.connection.status = if shutdown_failed.is_some() {
+            "error".into()
+        } else {
+            "disconnected".into()
+        };
+        self.state.connection.message = match &shutdown_failed {
+            Some(error) => format!("停止失败，已强制回退到 Mock：{error}"),
+            None => format!("{reason}；本应用管理的进程已回收"),
+        };
         self.state.connection.provider_session_id = None;
         if self.state.approvals.is_empty()
             && matches!(
@@ -939,24 +971,31 @@ impl Kernel {
         if approval.kind != "agent_permission" {
             return Err("此审批不是 Agent 权限请求".into());
         }
-        self.require_agent_write(&approval)?;
-        let (context, request_id) = self
-            .native_requests
-            .get(id)
-            .cloned()
-            .ok_or("Agent 请求已退出；不能重放历史权限请求")?;
-        self.validate_connector_context(&context)?;
+        if let Some(option) = &option_id {
+            if !approval.options.iter().any(|item| &item.id == option) {
+                return Err("权限选项不属于此请求".into());
+            }
+        }
+        // Rejecting must never require the permission being rejected:
+        // `require_agent_write` fails exactly when the epoch is stale or the
+        // policy is restricted/disabled, which would leave a rejection stuck
+        // with no way out except cancelling the task. Only an allow-option is
+        // gated, mirroring `decide_approval`.
         let allowed = option_id.as_ref().is_some_and(|id| {
             approval
                 .options
                 .iter()
                 .any(|option| &option.id == id && option.kind.starts_with("allow_"))
         });
-        if let Some(option) = &option_id {
-            if !approval.options.iter().any(|item| &item.id == option) {
-                return Err("权限选项不属于此请求".into());
-            }
+        if allowed {
+            self.require_agent_write(&approval)?;
         }
+        let (context, request_id) = self
+            .native_requests
+            .get(id)
+            .cloned()
+            .ok_or("Agent 请求已退出；不能重放历史权限请求")?;
+        self.validate_connector_context(&context)?;
         self.connector
             .permission_reply(&context, &request_id, option_id.as_deref())?;
         self.native_requests.remove(id);
@@ -1168,6 +1207,13 @@ impl Kernel {
             }
             ConnectorEventKind::ToolProposal { proposal } => {
                 self.require_agent_start()?;
+                // Only approvals created by this proposal may auto-apply: a
+                // blanket sweep would also approve unrelated pending proposals,
+                // including a layout proposal the module-tools path left pending.
+                // Owned ids: borrowing `&str` out of `self.state` would block
+                // the `&mut self` proposal call below.
+                let known_ids: std::collections::HashSet<String> =
+                    self.state.approvals.iter().map(|a| a.id.clone()).collect();
                 ToolGateway::propose(self, &event.context, proposal.clone())?;
                 if self.effective_policy() == WorkspacePolicy::Full {
                     let ids = self
@@ -1175,9 +1221,11 @@ impl Kernel {
                         .approvals
                         .iter()
                         .filter(|a| {
-                            a.origin == "agent"
+                            !known_ids.contains(a.id.as_str())
+                                && a.origin == "agent"
                                 && a.epoch == self.permission_epoch
                                 && a.kind != "agent_permission"
+                                && !is_metadata_approval(a)
                         })
                         .map(|a| a.id.clone())
                         .collect::<Vec<_>>();
@@ -4136,6 +4184,55 @@ mod tests {
             .apply_policy(configured_policy(WorkspacePolicy::Disabled, 10))
             .unwrap();
         assert!(kernel.state.approvals.is_empty());
+    }
+
+    #[test]
+    fn rejecting_a_permission_request_never_requires_agent_write() {
+        let fixture = Fixture::new();
+        let mut kernel = fixture.open();
+        kernel
+            .apply_policy(configured_policy(WorkspacePolicy::Restricted, 9))
+            .unwrap();
+        prompt(&mut kernel, "modify document");
+        let context = kernel.active.as_ref().unwrap().context.clone();
+        let options = vec![
+            crate::agent::PermissionOption {
+                id: "allow-once".into(),
+                name: "允许一次".into(),
+                kind: "allow_once".into(),
+            },
+            crate::agent::PermissionOption {
+                id: "reject".into(),
+                name: "拒绝".into(),
+                kind: "reject".into(),
+            },
+        ];
+        kernel.connector = Box::new(EventFixture(vec![ConnectorEvent {
+            context: context.clone(),
+            seq: 1,
+            kind: ConnectorEventKind::PermissionRequest {
+                request_id: serde_json::json!("req-1"),
+                title: "读取文件".into(),
+                options: options.clone(),
+            },
+        }]));
+        kernel.tick().unwrap();
+        let approval = kernel
+            .state
+            .approvals
+            .iter()
+            .find(|a| a.kind == "agent_permission")
+            .expect("permission approval")
+            .clone();
+        // Under Restricted, `require_agent_write` fails — but rejecting must
+        // still go through instead of leaving the request stuck.
+        kernel
+            .dispatch(WorkspaceAction::PermissionReply {
+                approval_id: approval.id.clone(),
+                option_id: Some("reject".into()),
+            })
+            .unwrap();
+        assert!(kernel.state.approvals.iter().all(|a| a.id != approval.id));
     }
 
     #[test]

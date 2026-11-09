@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Activity,
   Check,
@@ -204,6 +204,20 @@ export function ReviewPanel({
 }) {
   const [busy, setBusy] = useState(false),
     [error, setError] = useState("");
+  // The state guard alone is racy: two rapid clicks before the re-render
+  // both see busy === false. The ref is set synchronously, before the
+  // first await, so the second call is rejected in the same tick.
+  const busyRef = useRef(false);
+  const claimBusy = () => {
+    if (busyRef.current) return false;
+    busyRef.current = true;
+    setBusy(true);
+    return true;
+  };
+  const releaseBusy = () => {
+    busyRef.current = false;
+    setBusy(false);
+  };
   const p = snapshot.approvals[0];
   useEffect(() => setError(""), [p?.id]);
   if (!p)
@@ -226,27 +240,36 @@ export function ReviewPanel({
       policy.effective === "restricted" ||
       policy.effective === "disabled");
   const decide = async (allow: boolean) => {
-    if (busy) return;
-    setBusy(true);
+    if (!claimBusy()) return;
     setError("");
     try {
       await dispatch({ type: "decide_approval", approvalId: p.id, allow });
     } catch (err) {
       setError(errorMessage(err));
     } finally {
-      setBusy(false);
+      releaseBusy();
     }
   };
   const permissionReply = async (optionId: string | null) => {
-    if (busy) return;
-    setBusy(true);
+    if (!claimBusy()) return;
     setError("");
     try {
       await dispatch({ type: "permission_reply", approvalId: p.id, optionId });
     } catch (err) {
       setError(errorMessage(err));
     } finally {
-      setBusy(false);
+      releaseBusy();
+    }
+  };
+  const cancelRun = async () => {
+    if (!claimBusy()) return;
+    setError("");
+    try {
+      await dispatch({ type: "cancel" });
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      releaseBusy();
     }
   };
   return (
@@ -335,7 +358,7 @@ export function ReviewPanel({
         {blocked
           ? stale
             ? "权限已变化 · 请重新发起任务"
-            : "当前权限不允许执行此 Agent 提议；你仍可拒绝它或手动编辑工作区。"
+            : "当前权限不允许执行此 Agent 提议；拒绝暂不可用，请使用“取消任务”或手动编辑工作区。"
           : p.kind === "agent_permission"
             ? "仅本次请求；Agent 自有工具仍由其自身控制"
             : "仅本次操作 · 应用前复核版本"}
@@ -352,23 +375,13 @@ export function ReviewPanel({
             <button
               className="button"
               disabled={busy}
-              onClick={async () => {
-                setBusy(true);
-                setError("");
-                try {
-                  await dispatch({ type: "cancel" });
-                } catch (err) {
-                  setError(errorMessage(err));
-                } finally {
-                  setBusy(false);
-                }
-              }}
+              onClick={() => void cancelRun()}
             >
               取消任务
             </button>
             <button
               className="button"
-              disabled={busy}
+              disabled={busy || blocked}
               onClick={() => void permissionReply(null)}
             >
               拒绝请求
@@ -394,17 +407,7 @@ export function ReviewPanel({
               <button
                 className="button"
                 disabled={busy}
-                onClick={async () => {
-                  setBusy(true);
-                  setError("");
-                  try {
-                    await dispatch({ type: "cancel" });
-                  } catch (err) {
-                    setError(errorMessage(err));
-                  } finally {
-                    setBusy(false);
-                  }
-                }}
+                onClick={() => void cancelRun()}
               >
                 取消任务
               </button>
@@ -1040,9 +1043,18 @@ export function SettingsPanel({
               className={policy.system === mode ? "chosen" : ""}
               aria-pressed={policy.system === mode}
               disabled={settingsBusy}
-              onClick={() =>
-                void changeSetting({ type: "set_system_policy", mode })
-              }
+              onClick={() => {
+                // A system policy applies to every workspace in the channel.
+                if (
+                  (mode === "allow_all" || mode === "deny_all") &&
+                  policy.system !== mode &&
+                  !window.confirm(
+                    "系统策略将作用于当前渠道的所有工作区；切换后 Agent 修改可能自动应用或全部停用。确定切换吗？",
+                  )
+                )
+                  return;
+                void changeSetting({ type: "set_system_policy", mode });
+              }}
             >
               {label}
             </button>

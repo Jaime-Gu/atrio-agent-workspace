@@ -25,7 +25,7 @@ import type {
   WorkspaceModule,
   WorkspaceSnapshot,
 } from "../lib/types";
-import { useDocumentDraft } from "../lib/document-drafts";
+import { useDocumentDraft, useDraftPersistError } from "../lib/document-drafts";
 import { limitTaskTitle } from "../lib/task-title";
 import "./module-content.css";
 
@@ -200,6 +200,10 @@ function Planner({ module, dispatch, onPrompt }: ModuleContentProps) {
   const [adding, setAdding] = useState(false);
   const [title, setTitle] = useState("");
   const [saving, setSaving] = useState(false);
+  const [toggling, setToggling] = useState<ReadonlySet<string>>(new Set());
+  // The state Set drives the disabled checkbox; the ref is the synchronous
+  // guard — two clicks in the same tick read the same stale state.
+  const togglingRef = useRef<Set<string>>(new Set());
   const [error, setError] = useState("");
   const done = module.tasks.filter((task) => task.done).length;
   const progress = module.tasks.length
@@ -225,11 +229,23 @@ function Planner({ module, dispatch, onPrompt }: ModuleContentProps) {
     }
   }
   async function toggle(taskId: string) {
+    // The Host flips unconditionally, so two dispatches for one click
+    // would cancel each other out and leave the checkbox unchanged.
+    if (togglingRef.current.has(taskId)) return;
+    togglingRef.current.add(taskId);
     setError("");
+    setToggling((previous) => new Set(previous).add(taskId));
     try {
       await dispatch({ type: "toggle_task", moduleId: module.id, taskId });
     } catch (err) {
       setError(err instanceof Error ? err.message : "更新失败，请重试。");
+    } finally {
+      togglingRef.current.delete(taskId);
+      setToggling((previous) => {
+        const next = new Set(previous);
+        next.delete(taskId);
+        return next;
+      });
     }
   }
   return (
@@ -269,6 +285,7 @@ function Planner({ module, dispatch, onPrompt }: ModuleContentProps) {
               role="checkbox"
               aria-checked={task.done}
               aria-label={`${task.done ? "标记未完成" : "完成任务"}：${task.title}`}
+              disabled={toggling.has(task.id)}
               onClick={() => void toggle(task.id)}
             >
               {task.done && <Check size={12} strokeWidth={3} />}
@@ -369,6 +386,7 @@ function Document({
   onPrompt,
 }: ModuleContentProps) {
   const [cached, updateDraft] = useDocumentDraft(snapshot.rootPath, module.id);
+  const persistError = useDraftPersistError(snapshot.rootPath, module.id);
   const editing = !!cached;
   const draft = cached?.text ?? module.content;
   const baseRevision = cached ? cached.baseRevision : module.revision;
@@ -390,9 +408,11 @@ function Document({
     if (!cached || cached.submitted === null) return;
     if (
       !pendingApproval &&
-      module.content === cached.submitted &&
-      module.revision !== cached.baseRevision
+      !cached.saving &&
+      module.content === cached.submitted
     ) {
+      // The write landed (or was already there: the Host answers Ok with no
+      // revision change for a no-op write). Either way the draft is done.
       updateDraft(undefined);
     } else if (pendingApproval && !cached.hadApproval) {
       updateDraft({ ...cached, hadApproval: true });
@@ -425,6 +445,14 @@ function Document({
       hadApproval: false,
       error: "",
     });
+  }
+  function cancelEditing() {
+    if (
+      draft !== module.content &&
+      !window.confirm("放弃当前草稿？未保存的修改将丢失。")
+    )
+      return;
+    updateDraft(undefined);
   }
   async function save() {
     if (
@@ -474,7 +502,7 @@ function Document({
               <button
                 className="mc-toolbar-button"
                 disabled={saving || submitted || pendingApproval}
-                onClick={() => updateDraft(undefined)}
+                onClick={cancelEditing}
               >
                 <X size={12} />
                 取消
@@ -518,6 +546,11 @@ function Document({
       {error && (
         <div className="mc-inline-error mc-document-error" role="alert">
           {error}
+        </div>
+      )}
+      {persistError && (
+        <div className="mc-inline-error mc-document-error" role="alert">
+          {persistError}
         </div>
       )}
       {editing ? (

@@ -1987,6 +1987,11 @@ kbd {
   padding: 7px 10px;
   text-align: left;
 }
+/* A second note (for example the full-access banner above a connection
+   hint) stacks above the first instead of covering it. */
+.composer-policy-note + .composer-policy-note {
+  bottom: calc(100% + 44px);
+}
 @media (max-width: 720px) {
   .app-shell {
     grid-template-rows: var(--topbar) minmax(0, 1fr) 44px var(--composer);
